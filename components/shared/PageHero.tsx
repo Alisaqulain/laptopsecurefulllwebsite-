@@ -6,7 +6,7 @@ import { ChevronRight, Home } from "lucide-react";
 import { GlowOrb } from "./GlowOrb";
 
 interface PageHeroProps {
-  eyebrow?: string;
+  eyebrow?: React.ReactNode;
   title: string | React.ReactNode;
   subtitle?: string;
   breadcrumbs?: { name: string; href?: string }[];

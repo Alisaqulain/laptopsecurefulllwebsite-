@@ -1,5 +1,7 @@
 import { Hero } from "@/components/home/Hero";
 import { Categories } from "@/components/home/Categories";
+import { FlashDeals } from "@/components/home/FlashDeals";
+import { TrendingNow } from "@/components/home/TrendingNow";
 import { FeaturedProducts } from "@/components/home/FeaturedProducts";
 import { WhyChooseUs } from "@/components/home/WhyChooseUs";
 import { TradeInSection } from "@/components/home/TradeInSection";
@@ -16,7 +18,9 @@ export default function HomePage() {
     <>
       <Hero />
       <Categories />
+      <FlashDeals />
       <FeaturedProducts />
+      <TrendingNow />
       <WhyChooseUs />
       <Stats />
       <TradeInSection />

@@ -2,8 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useMarketplace } from "@/components/providers/MarketplaceProvider";
+import { RecentlyViewed } from "@/components/shared/RecentlyViewed";
 import {
   Star,
   ShoppingCart,
@@ -38,6 +40,12 @@ interface Props {
 
 export function ProductDetail({ product, related }: Props) {
   const [activeImage, setActiveImage] = useState(0);
+  const { pushViewed } = useMarketplace();
+
+  useEffect(() => {
+    pushViewed(product);
+  }, [product, pushViewed]);
+
   const discount =
     product.originalPrice && calculateDiscount(product.originalPrice, product.price);
 
@@ -342,6 +350,8 @@ export function ProductDetail({ product, related }: Props) {
           </div>
         </section>
       )}
+
+      <RecentlyViewed excludeId={product.id} />
     </>
   );
 }

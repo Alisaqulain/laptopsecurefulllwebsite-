@@ -8,7 +8,7 @@ interface ParticleBackgroundProps {
 }
 
 export function ParticleBackground({
-  density = 50,
+  density = 18,
   className = "",
 }: ParticleBackgroundProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -16,8 +16,13 @@ export function ParticleBackground({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { alpha: true });
     if (!ctx) return;
+
+    // Respect reduced-motion preference: don't animate at all.
+    const reduceMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     let animationId: number;
     let particles: Particle[] = [];
@@ -32,71 +37,69 @@ export function ParticleBackground({
       opacity: number;
     }
 
-    const colors = ["#0078ff", "#ff6b00", "#3aa4ff", "#ffa14d"];
+    const colors = ["#0078ff", "#ff6b00", "#3aa4ff"];
 
     const resize = () => {
-      const dpr = window.devicePixelRatio || 1;
+      // Cap DPR at 1.5 to avoid expensive renders on hi-DPI screens.
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       canvas.width = canvas.offsetWidth * dpr;
       canvas.height = canvas.offsetHeight * dpr;
-      ctx.scale(dpr, dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
 
     const init = () => {
-      particles = Array.from({ length: density }, () => ({
+      // Halve density on small screens.
+      const count =
+        canvas.offsetWidth < 768 ? Math.round(density * 0.5) : density;
+      particles = Array.from({ length: count }, () => ({
         x: Math.random() * canvas.offsetWidth,
         y: Math.random() * canvas.offsetHeight,
-        vx: (Math.random() - 0.5) * 0.3,
-        vy: (Math.random() - 0.5) * 0.3,
-        size: Math.random() * 2 + 0.5,
+        vx: (Math.random() - 0.5) * 0.25,
+        vy: (Math.random() - 0.5) * 0.25,
+        size: Math.random() * 1.6 + 0.5,
         color: colors[Math.floor(Math.random() * colors.length)],
-        opacity: Math.random() * 0.5 + 0.2,
+        opacity: Math.random() * 0.45 + 0.2,
       }));
     };
 
-    const draw = () => {
+    // Throttle to ~30fps – plenty for ambient particles, half the cost.
+    const FRAME_MS = 1000 / 30;
+    let last = 0;
+
+    const draw = (now: number) => {
+      animationId = requestAnimationFrame(draw);
+      if (now - last < FRAME_MS) return;
+      last = now;
+
       ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
 
-      particles.forEach((p, i) => {
+      // No shadowBlur (very expensive). No O(N²) line connections.
+      // Just clean glowing dots.
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
         p.x += p.vx;
         p.y += p.vy;
-
         if (p.x < 0 || p.x > canvas.offsetWidth) p.vx *= -1;
         if (p.y < 0 || p.y > canvas.offsetHeight) p.vy *= -1;
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = p.color +
+        ctx.fillStyle =
+          p.color +
           Math.floor(p.opacity * 255)
             .toString(16)
             .padStart(2, "0");
-        ctx.shadowColor = p.color;
-        ctx.shadowBlur = 8;
         ctx.fill();
-
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[j].x - p.x;
-          const dy = particles[j].y - p.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 120) {
-            ctx.beginPath();
-            ctx.moveTo(p.x, p.y);
-            ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.strokeStyle = `rgba(0, 120, 255, ${
-              0.15 * (1 - dist / 120)
-            })`;
-            ctx.lineWidth = 0.6;
-            ctx.shadowBlur = 0;
-            ctx.stroke();
-          }
-        }
-      });
-
-      animationId = requestAnimationFrame(draw);
+      }
     };
 
     resize();
     init();
-    draw();
+    if (!reduceMotion) animationId = requestAnimationFrame(draw);
+    else {
+      // Render one static frame for accessibility users.
+      draw(performance.now());
+    }
 
     const handleResize = () => {
       resize();

@@ -4,7 +4,7 @@ export const siteConfig = {
   description:
     "India's premium marketplace for second-hand, refurbished, and new laptops, gaming PCs, accessories, and expert repair services. Trade-in, upgrade, and shop with confidence.",
   url: process.env.NEXT_PUBLIC_SITE_URL || "https://laptopsecure.com",
-  ogImage: "/og-image.jpg",
+  ogImage: "/logo.jpg",
   whatsappNumber:
     process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "91XXXXXXXXXX",
   contact: {
@@ -51,21 +51,22 @@ export const navLinks = [
 export const footerLinks = {
   shop: [
     { name: "All Laptops", href: "/shop" },
-    { name: "Gaming Laptops", href: "/shop?category=gaming" },
-    { name: "Business Laptops", href: "/shop?category=business" },
-    { name: "Student Laptops", href: "/shop?category=student" },
-    { name: "Refurbished", href: "/shop?category=refurbished" },
+    { name: "Gaming Laptops", href: "/gaming-laptops" },
+    { name: "Refurbished", href: "/refurbished" },
+    { name: "Student Deals", href: "/student-deals" },
+    { name: "Custom PC Builds", href: "/custom-pc" },
     { name: "Accessories", href: "/accessories" },
   ],
   services: [
     { name: "Laptop Repair", href: "/repair" },
     { name: "Sell Your Laptop", href: "/sell" },
-    { name: "Custom PC Build", href: "/custom-pc" },
+    { name: "Trade-In Program", href: "/trade-in" },
+    { name: "Corporate / Bulk", href: "/corporate" },
     { name: "PC Upgrades", href: "/repair#upgrades" },
-    { name: "Trade-in Program", href: "/sell" },
   ],
   company: [
     { name: "About Us", href: "/about" },
+    { name: "Careers", href: "/careers" },
     { name: "Blog", href: "/blog" },
     { name: "Gallery", href: "/gallery" },
     { name: "Testimonials", href: "/testimonials" },
@@ -74,8 +75,8 @@ export const footerLinks = {
   support: [
     { name: "FAQ", href: "/faq" },
     { name: "Warranty", href: "/warranty" },
-    { name: "Shipping", href: "/warranty#shipping" },
-    { name: "Returns", href: "/warranty#returns" },
+    { name: "Wishlist", href: "/wishlist" },
+    { name: "Compare", href: "/compare" },
     { name: "Track Order", href: "/contact" },
   ],
 };

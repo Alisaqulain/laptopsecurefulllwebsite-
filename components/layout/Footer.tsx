@@ -15,6 +15,8 @@ import {
   Truck,
   CreditCard,
   RefreshCcw,
+  Code2,
+  Heart,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Logo } from "./Logo";
@@ -92,7 +94,7 @@ export function Footer() {
       <div className="container py-14 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-8">
         {/* Brand */}
         <div className="col-span-2 lg:col-span-2 space-y-6">
-          <Logo />
+          <Logo size={56} />
           <p className="text-sm text-muted-foreground leading-relaxed max-w-sm">
             India's premium marketplace for new, refurbished & second-hand laptops,
             gaming PCs, accessories, and expert repair services.
@@ -210,6 +212,53 @@ export function Footer() {
               Contact
             </Link>
           </div>
+        </div>
+      </div>
+
+      {/* Designed & developed credit */}
+      <div className="relative border-t border-white/5 bg-[#04060c]/60">
+        <motion.div
+          aria-hidden
+          className="absolute inset-x-0 top-0 h-px"
+          style={{
+            background:
+              "linear-gradient(90deg, transparent, rgba(0,120,255,0.6), rgba(255,107,0,0.6), transparent)",
+          }}
+          animate={{ opacity: [0.4, 1, 0.4] }}
+          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <div className="container py-5 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 text-xs">
+          <span className="inline-flex items-center gap-2 text-muted-foreground">
+            <Code2 className="h-3.5 w-3.5 text-electric-400" />
+            Designed &amp; developed with
+            <Heart
+              className="h-3.5 w-3.5 text-neon-500 animate-pulse"
+              fill="currentColor"
+            />
+            by
+          </span>
+          <a
+            href="https://devspheresolutions.in/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group relative inline-flex items-center gap-1 font-semibold tracking-wide"
+          >
+            <span className="bg-gradient-to-r from-electric-300 via-electric-400 to-neon-400 bg-clip-text text-transparent transition-all group-hover:from-neon-400 group-hover:via-electric-400 group-hover:to-electric-300">
+              DevsSphere Solutions
+            </span>
+            <ArrowUpRight className="h-3.5 w-3.5 text-electric-400 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+            <span
+              aria-hidden
+              className="absolute -bottom-0.5 left-0 h-px w-0 bg-gradient-to-r from-electric-400 to-neon-400 transition-all duration-300 group-hover:w-full"
+            />
+          </a>
+          <span className="hidden sm:inline text-white/20">•</span>
+          <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+            Developer
+            <span className="font-semibold text-foreground/90">
+              Syed Ali Zaidi
+            </span>
+          </span>
         </div>
       </div>
     </footer>

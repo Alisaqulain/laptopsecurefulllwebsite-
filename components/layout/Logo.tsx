@@ -1,40 +1,64 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { motion } from "framer-motion";
-import { ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface LogoProps {
   className?: string;
+  /** When false, only the square shield-icon area is shown (compact). */
   showText?: boolean;
+  /** Visual height in pixels. Width scales to preserve aspect ratio. */
+  size?: number;
+  priority?: boolean;
 }
 
-export function Logo({ className, showText = true }: LogoProps) {
+// Native asset is 1536×1024 (3:2). The shield icon sits in the
+// horizontal-center-left region, the wordmark to its right.
+const FULL_ASPECT = 1536 / 1024; // 1.5
+
+export function Logo({
+  className,
+  showText = true,
+  size = 44,
+  priority = false,
+}: LogoProps) {
+  const width = showText ? Math.round(size * FULL_ASPECT) : size;
+
   return (
     <Link
       href="/"
-      className={cn("flex items-center gap-2.5 group", className)}
+      className={cn("group inline-flex items-center", className)}
       aria-label="LaptopSecure home"
     >
-      <motion.div
-        whileHover={{ rotate: 8, scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-electric-500 to-electric-700 shadow-glow-blue"
+      <motion.span
+        whileHover={{ scale: 1.04 }}
+        whileTap={{ scale: 0.96 }}
+        transition={{ type: "spring", stiffness: 320, damping: 22 }}
+        className="relative inline-block"
+        style={{
+          height: size,
+          width,
+        }}
       >
-        <ShieldCheck className="h-6 w-6 text-white" strokeWidth={2.4} />
-        <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-neon-500 shadow-[0_0_10px_#ff6b00] animate-pulse" />
-      </motion.div>
-      {showText && (
-        <div className="flex flex-col leading-none">
-          <span className="font-display text-lg font-bold tracking-tight text-foreground">
-            Laptop<span className="text-electric-400">Secure</span>
-          </span>
-          <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground mt-0.5">
-            Buy • Sell • Repair
-          </span>
-        </div>
-      )}
+        <Image
+          src="/logo.jpg"
+          alt="LaptopSecure"
+          fill
+          priority={priority}
+          sizes={`${width}px`}
+          // mix-blend-mode: screen → black pixels become transparent
+          // against any dark background (works great for our dark theme).
+          style={{ mixBlendMode: "screen" }}
+          className={cn(
+            "select-none",
+            showText
+              ? "object-contain"
+              : "object-cover scale-[1.7] -translate-x-[18%]",
+          )}
+        />
+      </motion.span>
     </Link>
   );
 }

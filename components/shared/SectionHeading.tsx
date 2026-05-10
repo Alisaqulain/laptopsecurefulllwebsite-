@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 interface SectionHeadingProps {
-  eyebrow?: string;
+  eyebrow?: React.ReactNode;
   title: string | React.ReactNode;
   subtitle?: string;
   align?: "left" | "center";

@@ -4,7 +4,11 @@ import "./globals.css";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { WhatsAppButton } from "@/components/layout/WhatsAppButton";
-import { MouseGlow } from "@/components/shared/MouseGlow";
+import { LenisProvider } from "@/components/layout/LenisProvider";
+import { PageTransition } from "@/components/layout/PageTransition";
+import { MarketplaceProvider } from "@/components/providers/MarketplaceProvider";
+import { QuickViewModal } from "@/components/shared/QuickViewModal";
+import { CompareDrawer } from "@/components/shared/CompareDrawer";
 import { siteConfig } from "@/lib/config";
 
 const inter = Inter({
@@ -57,9 +61,9 @@ export const metadata: Metadata = {
     siteName: siteConfig.name,
     images: [
       {
-        url: siteConfig.ogImage,
-        width: 1200,
-        height: 630,
+        url: "/logo.jpg",
+        width: 1536,
+        height: 1024,
         alt: siteConfig.name,
       },
     ],
@@ -68,7 +72,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: `${siteConfig.name} — ${siteConfig.tagline}`,
     description: siteConfig.description,
-    images: [siteConfig.ogImage],
+    images: ["/logo.jpg"],
     creator: "@laptopsecure",
   },
   robots: {
@@ -83,8 +87,12 @@ export const metadata: Metadata = {
     },
   },
   icons: {
-    icon: "/favicon.ico",
-    apple: "/apple-icon.png",
+    icon: [
+      { url: "/logo.jpg", type: "image/jpeg" },
+    ],
+    apple: [
+      { url: "/logo.jpg" },
+    ],
   },
   manifest: "/manifest.webmanifest",
   alternates: {
@@ -108,7 +116,7 @@ export default function RootLayout({
               "@type": "Organization",
               name: siteConfig.name,
               url: siteConfig.url,
-              logo: `${siteConfig.url}/logo.png`,
+              logo: `${siteConfig.url}/logo.jpg`,
               email: siteConfig.contact.email,
               telephone: siteConfig.contact.phone,
               address: {
@@ -120,11 +128,18 @@ export default function RootLayout({
             }),
           }}
         />
-        <MouseGlow />
-        <Navbar />
-        <main className="flex-1 relative">{children}</main>
-        <Footer />
-        <WhatsAppButton />
+        <MarketplaceProvider>
+          <LenisProvider>
+            <Navbar />
+            <main className="flex-1 relative">
+              <PageTransition>{children}</PageTransition>
+            </main>
+            <Footer />
+            <WhatsAppButton />
+            <QuickViewModal />
+            <CompareDrawer />
+          </LenisProvider>
+        </MarketplaceProvider>
       </body>
     </html>
   );

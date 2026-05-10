@@ -1,19 +1,24 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 interface GlowOrbProps {
   className?: string;
   color?: "blue" | "orange" | "purple";
   size?: "sm" | "md" | "lg";
+  /** kept for backwards compatibility; ignored. */
   blur?: number;
 }
 
-const colorMap = {
-  blue: "rgba(0, 120, 255, 0.5)",
-  orange: "rgba(255, 107, 0, 0.4)",
-  purple: "rgba(139, 92, 246, 0.4)",
+// Strong-falloff radial gradients (no `filter: blur` — that triggers
+// GPU-heavy paints per frame). The gradient itself produces the glow.
+const bgMap = {
+  blue:
+    "radial-gradient(circle, rgba(0,120,255,0.55), rgba(0,120,255,0.18) 35%, transparent 70%)",
+  orange:
+    "radial-gradient(circle, rgba(255,107,0,0.45), rgba(255,107,0,0.15) 35%, transparent 70%)",
+  purple:
+    "radial-gradient(circle, rgba(139,92,246,0.45), rgba(139,92,246,0.15) 35%, transparent 70%)",
 };
 
 const sizeMap = {
@@ -26,29 +31,16 @@ export function GlowOrb({
   className,
   color = "blue",
   size = "md",
-  blur = 100,
 }: GlowOrbProps) {
   return (
-    <motion.div
+    <div
       aria-hidden
       className={cn(
-        "absolute rounded-full pointer-events-none",
+        "absolute rounded-full pointer-events-none opacity-60",
         sizeMap[size],
         className,
       )}
-      style={{
-        background: `radial-gradient(circle, ${colorMap[color]}, transparent 70%)`,
-        filter: `blur(${blur}px)`,
-      }}
-      animate={{
-        scale: [1, 1.15, 1],
-        opacity: [0.4, 0.7, 0.4],
-      }}
-      transition={{
-        duration: 8,
-        repeat: Infinity,
-        ease: "easeInOut",
-      }}
+      style={{ background: bgMap[color] }}
     />
   );
 }
