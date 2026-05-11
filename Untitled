@@ -1,0 +1,27 @@
+# WhatsApp Business Number (with country code, no + or spaces)
+NEXT_PUBLIC_WHATSAPP_NUMBER=8439270277
+
+# Site URL
+NEXT_PUBLIC_SITE_URL=https://laptopsecure.in
+
+# WordPress Headless CMS (optional - app falls back to dummy data)
+NEXT_PUBLIC_WP_DOMAIN=cms.laptopsecure.com
+NEXT_PUBLIC_WP_API_URL=https://cms.laptopsecure.com/wp-json/wp/v2
+NEXT_PUBLIC_WP_GRAPHQL_URL=https://cms.laptopsecure.com/graphql
+
+# Contact info
+NEXT_PUBLIC_CONTACT_EMAIL=laptopsecure630@gmail.com
+NEXT_PUBLIC_CONTACT_PHONE=+918439270277
+
+# ERP / Admin
+MONGODB_URI=mongodb+srv://laptopsecure630_db_user:noQlBdgoz0T1o1ez@cluster0.tkmkpe6.mongodb.net/?appName=Cluster0
+MONGODB_DB_NAME=laptopsecure
+JWT_SECRET=replace-with-a-long-random-secret
+BCRYPT_ROUNDS=12
+
+# Optional: tighten auth cookie scope / rotation
+JWT_ISSUER=LaptopSecure
+JWT_AUDIENCE=LaptopSecureERP
+
+# One-time initial admin creation (keep secret)
+BOOTSTRAP_TOKEN=replace-with-a-long-random-bootstrap-token

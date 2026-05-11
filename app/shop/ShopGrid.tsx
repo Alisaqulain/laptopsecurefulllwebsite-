@@ -30,6 +30,8 @@ const conditionOptions = [
   "Refurbished",
 ];
 
+type SortKey = "featured" | "price_asc" | "price_desc" | "rating_desc";
+
 export function ShopGrid() {
   const [search, setSearch] = useState("");
   const [brand, setBrand] = useState<string | null>(null);
@@ -39,11 +41,12 @@ export function ShopGrid() {
   const [condition, setCondition] = useState<string | null>(null);
   const [maxPrice, setMaxPrice] = useState(300000);
   const [showFilters, setShowFilters] = useState(false);
+  const [sort, setSort] = useState<SortKey>("featured");
 
   const allBrands = useMemo(() => getAllBrands(), []);
 
   const filtered = useMemo(() => {
-    return products.filter((p) => {
+    const base = products.filter((p) => {
       if (search) {
         const q = search.toLowerCase();
         if (
@@ -61,7 +64,16 @@ export function ShopGrid() {
       if (p.price > maxPrice) return false;
       return true;
     });
-  }, [search, brand, category, ram, ssd, condition, maxPrice]);
+
+    const sorted = [...base];
+    if (sort === "price_asc") sorted.sort((a, b) => a.price - b.price);
+    if (sort === "price_desc") sorted.sort((a, b) => b.price - a.price);
+    if (sort === "rating_desc") sorted.sort((a, b) => b.rating - a.rating);
+    if (sort === "featured") {
+      sorted.sort((a, b) => Number(!!b.isBestseller) - Number(!!a.isBestseller));
+    }
+    return sorted;
+  }, [search, brand, category, ram, ssd, condition, maxPrice, sort]);
 
   const clearAll = () => {
     setSearch("");
@@ -88,7 +100,7 @@ export function ShopGrid() {
   return (
     <section className="container pb-24">
       {/* Top bar */}
-      <div className="mb-8 grid md:grid-cols-[1fr,auto] gap-3">
+      <div className="mb-6 grid gap-3 lg:grid-cols-[1fr,auto,auto]">
         <div className="relative">
           <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -99,10 +111,28 @@ export function ShopGrid() {
             className="pl-11 h-12 text-base"
           />
         </div>
+        <div className="flex gap-2">
+          <div className="flex h-12 items-center rounded-xl border border-white/10 bg-white/5 px-3 text-sm">
+            <span className="mr-2 text-xs uppercase tracking-widest text-muted-foreground">
+              Sort
+            </span>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortKey)}
+              className="bg-transparent text-sm outline-none"
+            >
+              <option value="featured">Featured</option>
+              <option value="price_asc">Price: Low → High</option>
+              <option value="price_desc">Price: High → Low</option>
+              <option value="rating_desc">Rating</option>
+            </select>
+          </div>
+        </div>
         <Button
           variant="outline"
           size="lg"
           onClick={() => setShowFilters((v) => !v)}
+          className="lg:hidden"
         >
           <SlidersHorizontal className="h-4 w-4" />
           Filters
@@ -115,118 +145,195 @@ export function ShopGrid() {
       </div>
 
       <div className="grid lg:grid-cols-[260px,1fr] gap-8">
-        {/* Filters panel */}
-        <AnimatePresence initial={false}>
-          {(showFilters || typeof window === "undefined") && (
-            <motion.aside
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
-              className={cn(
-                "lg:block",
-                !showFilters && "hidden lg:block",
+        {/* Desktop filters (always visible on lg+) */}
+        <aside className="hidden lg:block">
+          <div className="sticky top-24 space-y-6 glass rounded-2xl p-6 border border-white/5">
+            <div className="flex items-center justify-between">
+              <h3 className="font-display font-bold text-lg">Filters</h3>
+              {activeFilters.length > 0 && (
+                <Button variant="ghost" size="sm" onClick={clearAll} className="text-xs">
+                  Clear all
+                </Button>
               )}
+            </div>
+
+            <FilterGroup label="Category">
+              {categoryOptions.map((c) => (
+                <FilterChip
+                  key={c.id}
+                  active={category === c.id}
+                  onClick={() => setCategory(category === c.id ? null : c.id)}
+                >
+                  {c.label}
+                </FilterChip>
+              ))}
+            </FilterGroup>
+
+            <FilterGroup label="Brand">
+              {allBrands.map((b) => (
+                <FilterChip key={b} active={brand === b} onClick={() => setBrand(brand === b ? null : b)}>
+                  {b}
+                </FilterChip>
+              ))}
+            </FilterGroup>
+
+            <FilterGroup label="RAM">
+              {ramOptions.map((r) => (
+                <FilterChip key={r} active={ram === r} onClick={() => setRam(ram === r ? null : r)}>
+                  {r}
+                </FilterChip>
+              ))}
+            </FilterGroup>
+
+            <FilterGroup label="SSD">
+              {ssdOptions.map((s) => (
+                <FilterChip key={s} active={ssd === s} onClick={() => setSsd(ssd === s ? null : s)}>
+                  {s}
+                </FilterChip>
+              ))}
+            </FilterGroup>
+
+            <FilterGroup label="Condition">
+              {conditionOptions.map((c) => (
+                <FilterChip key={c} active={condition === c} onClick={() => setCondition(condition === c ? null : c)}>
+                  {c}
+                </FilterChip>
+              ))}
+            </FilterGroup>
+
+            <div>
+              <h4 className="text-xs uppercase tracking-widest text-muted-foreground mb-3 font-semibold">Max Price</h4>
+              <input
+                type="range"
+                min={20000}
+                max={300000}
+                step={5000}
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(Number(e.target.value))}
+                className="w-full accent-electric-500"
+              />
+              <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+                <span>₹20K</span>
+                <span className="font-bold text-electric-300">{formatPrice(maxPrice)}</span>
+                <span>₹3L</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        {/* Mobile filter drawer */}
+        <AnimatePresence>
+          {showFilters ? (
+            <motion.div
+              className="fixed inset-0 z-50 lg:hidden"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
             >
-              <div className="sticky top-24 space-y-6 glass rounded-2xl p-6 border border-white/5">
+              <button
+                aria-label="Close filters"
+                onClick={() => setShowFilters(false)}
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ x: -40, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: -40, opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="absolute left-0 top-0 h-full w-[88%] max-w-sm overflow-auto glass-strong border-r border-white/10 p-5"
+              >
                 <div className="flex items-center justify-between">
-                  <h3 className="font-display font-bold text-lg">Filters</h3>
-                  {activeFilters.length > 0 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={clearAll}
-                      className="text-xs"
-                    >
+                  <div className="font-display text-lg font-bold">Filters</div>
+                  <Button variant="ghost" size="sm" onClick={() => setShowFilters(false)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                {activeFilters.length > 0 ? (
+                  <div className="mt-2">
+                    <Button variant="secondary" size="sm" onClick={clearAll} className="w-full">
                       Clear all
                     </Button>
-                  )}
-                </div>
+                  </div>
+                ) : null}
 
-                <FilterGroup label="Category">
-                  {categoryOptions.map((c) => (
-                    <FilterChip
-                      key={c.id}
-                      active={category === c.id}
-                      onClick={() => setCategory(category === c.id ? null : c.id)}
-                    >
-                      {c.label}
-                    </FilterChip>
-                  ))}
-                </FilterGroup>
+                <div className="mt-6 space-y-6">
+                  <FilterGroup label="Category">
+                    {categoryOptions.map((c) => (
+                      <FilterChip
+                        key={c.id}
+                        active={category === c.id}
+                        onClick={() => setCategory(category === c.id ? null : c.id)}
+                      >
+                        {c.label}
+                      </FilterChip>
+                    ))}
+                  </FilterGroup>
 
-                <FilterGroup label="Brand">
-                  {allBrands.map((b) => (
-                    <FilterChip
-                      key={b}
-                      active={brand === b}
-                      onClick={() => setBrand(brand === b ? null : b)}
-                    >
-                      {b}
-                    </FilterChip>
-                  ))}
-                </FilterGroup>
+                  <FilterGroup label="Brand">
+                    {allBrands.map((b) => (
+                      <FilterChip key={b} active={brand === b} onClick={() => setBrand(brand === b ? null : b)}>
+                        {b}
+                      </FilterChip>
+                    ))}
+                  </FilterGroup>
 
-                <FilterGroup label="RAM">
-                  {ramOptions.map((r) => (
-                    <FilterChip
-                      key={r}
-                      active={ram === r}
-                      onClick={() => setRam(ram === r ? null : r)}
-                    >
-                      {r}
-                    </FilterChip>
-                  ))}
-                </FilterGroup>
+                  <FilterGroup label="RAM">
+                    {ramOptions.map((r) => (
+                      <FilterChip key={r} active={ram === r} onClick={() => setRam(ram === r ? null : r)}>
+                        {r}
+                      </FilterChip>
+                    ))}
+                  </FilterGroup>
 
-                <FilterGroup label="SSD">
-                  {ssdOptions.map((s) => (
-                    <FilterChip
-                      key={s}
-                      active={ssd === s}
-                      onClick={() => setSsd(ssd === s ? null : s)}
-                    >
-                      {s}
-                    </FilterChip>
-                  ))}
-                </FilterGroup>
+                  <FilterGroup label="SSD">
+                    {ssdOptions.map((s) => (
+                      <FilterChip key={s} active={ssd === s} onClick={() => setSsd(ssd === s ? null : s)}>
+                        {s}
+                      </FilterChip>
+                    ))}
+                  </FilterGroup>
 
-                <FilterGroup label="Condition">
-                  {conditionOptions.map((c) => (
-                    <FilterChip
-                      key={c}
-                      active={condition === c}
-                      onClick={() => setCondition(condition === c ? null : c)}
-                    >
-                      {c}
-                    </FilterChip>
-                  ))}
-                </FilterGroup>
+                  <FilterGroup label="Condition">
+                    {conditionOptions.map((c) => (
+                      <FilterChip
+                        key={c}
+                        active={condition === c}
+                        onClick={() => setCondition(condition === c ? null : c)}
+                      >
+                        {c}
+                      </FilterChip>
+                    ))}
+                  </FilterGroup>
 
-                <div>
-                  <h4 className="text-xs uppercase tracking-widest text-muted-foreground mb-3 font-semibold">
-                    Max Price
-                  </h4>
-                  <input
-                    type="range"
-                    min={20000}
-                    max={300000}
-                    step={5000}
-                    value={maxPrice}
-                    onChange={(e) => setMaxPrice(Number(e.target.value))}
-                    className="w-full accent-electric-500"
-                  />
-                  <div className="mt-2 flex justify-between text-xs text-muted-foreground">
-                    <span>₹20K</span>
-                    <span className="font-bold text-electric-300">
-                      {formatPrice(maxPrice)}
-                    </span>
-                    <span>₹3L</span>
+                  <div>
+                    <h4 className="text-xs uppercase tracking-widest text-muted-foreground mb-3 font-semibold">
+                      Max Price
+                    </h4>
+                    <input
+                      type="range"
+                      min={20000}
+                      max={300000}
+                      step={5000}
+                      value={maxPrice}
+                      onChange={(e) => setMaxPrice(Number(e.target.value))}
+                      className="w-full accent-electric-500"
+                    />
+                    <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+                      <span>₹20K</span>
+                      <span className="font-bold text-electric-300">{formatPrice(maxPrice)}</span>
+                      <span>₹3L</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </motion.aside>
-          )}
+
+                <div className="mt-8">
+                  <Button onClick={() => setShowFilters(false)} className="w-full">
+                    Apply filters
+                  </Button>
+                </div>
+              </motion.div>
+            </motion.div>
+          ) : null}
         </AnimatePresence>
 
         {/* Grid */}
@@ -247,13 +354,16 @@ export function ShopGrid() {
             </div>
           )}
 
-          <div className="mb-5 flex items-center justify-between text-sm text-muted-foreground">
+          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-sm text-muted-foreground">
             <span>
               Showing{" "}
               <span className="text-foreground font-bold">{filtered.length}</span>{" "}
               of{" "}
               <span className="text-foreground font-bold">{products.length}</span>{" "}
               products
+            </span>
+            <span className="text-xs text-muted-foreground">
+              Tip: use filters to quickly find your perfect machine.
             </span>
           </div>
 

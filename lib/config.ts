@@ -8,9 +8,9 @@ export const siteConfig = {
   whatsappNumber:
     process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "91XXXXXXXXXX",
   contact: {
-    email: process.env.NEXT_PUBLIC_CONTACT_EMAIL || "hello@laptopsecure.com",
-    phone: process.env.NEXT_PUBLIC_CONTACT_PHONE || "+91XXXXXXXXXX",
-    address: "Tech Hub, Sector 18, Cyber City, Gurugram, India",
+    email: process.env.NEXT_PUBLIC_CONTACT_EMAIL || "laptopsecure630@gmail.com",
+    phone: process.env.NEXT_PUBLIC_CONTACT_PHONE || "+918439270277",
+    address: "77/1 Bag Janki Dass, Shamli Road, Muzaffarnagar, 251002",
     hours: "Mon - Sat: 10:00 AM - 9:00 PM",
   },
   social: {

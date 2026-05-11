@@ -1,14 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Orbitron, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import { Navbar } from "@/components/layout/Navbar";
-import { Footer } from "@/components/layout/Footer";
-import { WhatsAppButton } from "@/components/layout/WhatsAppButton";
-import { LenisProvider } from "@/components/layout/LenisProvider";
-import { PageTransition } from "@/components/layout/PageTransition";
-import { MarketplaceProvider } from "@/components/providers/MarketplaceProvider";
-import { QuickViewModal } from "@/components/shared/QuickViewModal";
-import { CompareDrawer } from "@/components/shared/CompareDrawer";
+import { RootAppShell } from "@/components/layout/RootAppShell";
 import { siteConfig } from "@/lib/config";
 
 const inter = Inter({
@@ -128,18 +121,7 @@ export default function RootLayout({
             }),
           }}
         />
-        <MarketplaceProvider>
-          <LenisProvider>
-            <Navbar />
-            <main className="flex-1 relative">
-              <PageTransition>{children}</PageTransition>
-            </main>
-            <Footer />
-            <WhatsAppButton />
-            <QuickViewModal />
-            <CompareDrawer />
-          </LenisProvider>
-        </MarketplaceProvider>
+        <RootAppShell>{children}</RootAppShell>
       </body>
     </html>
   );

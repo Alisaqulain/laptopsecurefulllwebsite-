@@ -1,0 +1,73 @@
+/* Scoped light theme for ERP / admin apps — does not affect the public marketing site */
+.erp-skin {
+  --background: 210 20% 98%;
+  --foreground: 222 47% 11%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+
+  --primary: 221 83% 53%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 214 32% 91%;
+  --secondary-foreground: 222 47% 11%;
+
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 40%;
+
+  --accent: 214 32% 91%;
+  --accent-foreground: 222 47% 11%;
+
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 214 32% 88%;
+  --input: 214 32% 88%;
+  --ring: 221 83% 53%;
+
+  --radius: 0.375rem;
+
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+/* Staff portals: no motion, instant feedback (overrides tailwind-animate / component defaults). */
+.erp-skin,
+.erp-skin * {
+  scroll-behavior: auto !important;
+}
+
+/* Normal system cursor inside staff UIs (marketing site may hide the OS cursor). */
+.erp-skin {
+  cursor: auto;
+}
+.erp-skin a[href],
+.erp-skin button:not(:disabled),
+.erp-skin [role="button"] {
+  cursor: pointer;
+}
+
+.erp-skin * {
+  transition-duration: 0ms !important;
+  transition-delay: 0ms !important;
+  animation-duration: 0ms !important;
+  animation-delay: 0ms !important;
+}
+
+.erp-skin .erp-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+
+@media print {
+  .erp-skin .erp-no-print {
+    display: none !important;
+  }
+  .erp-skin .erp-print-main {
+    padding: 0 !important;
+    background: white !important;
+  }
+}
