@@ -17,6 +17,16 @@ type Summary = {
   recentPurchases: { _id: string; invoiceNumber: string; date: string; totals: { finalTotal: number } }[];
 };
 
+type DeleteRequest = {
+  _id: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  createdAt: string;
+  message?: string;
+  newValue?: { invoiceNumber?: string; reason?: string };
+};
+
 function StatCard(props: { label: string; value: string; sub?: string }) {
   return (
     <Card className="glass p-4">
@@ -29,19 +39,27 @@ function StatCard(props: { label: string; value: string; sub?: string }) {
 
 export default function ErpDashboard() {
   const [data, setData] = useState<Summary | null>(null);
+  const [requests, setRequests] = useState<DeleteRequest[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       setError(null);
-      const res = await fetch("/api/analytics/summary", { cache: "no-store" });
+      const [res, reqRes] = await Promise.all([
+        fetch("/api/analytics/summary", { cache: "no-store" }),
+        fetch("/api/audit/requests", { cache: "no-store" }),
+      ]);
+
       const json = (await res.json().catch(() => null)) as any;
       if (!res.ok) {
         setError(json?.error?.message || "Failed to load analytics");
         setData(null);
-        return;
+      } else {
+        setData(json.data as Summary);
       }
-      setData(json.data as Summary);
+
+      const reqJson = (await reqRes.json().catch(() => null)) as any;
+      if (reqRes.ok) setRequests((reqJson?.data?.requests ?? []) as DeleteRequest[]);
     })();
   }, []);
 
@@ -106,6 +124,26 @@ export default function ErpDashboard() {
           </div>
         </Card>
       </div>
+
+      <Card className="glass p-4">
+        <div className="text-sm font-medium">Delete requests from sales staff</div>
+        <div className="mt-3 divide-y divide-white/5 text-sm">
+          {requests.map((r) => (
+            <div key={r._id} className="flex flex-col gap-1 py-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-muted-foreground">
+                <span className="font-mono text-xs">{r.newValue?.invoiceNumber ?? String(r.entityId).slice(-6)}</span>
+                <span className="mx-2 text-white/20">•</span>
+                <span className="text-xs">{new Date(r.createdAt).toLocaleString("en-IN")}</span>
+                {r.message ? <div className="mt-1 text-xs text-muted-foreground">{r.message}</div> : null}
+              </div>
+              <div className="text-xs text-muted-foreground">{r.action.replaceAll("_", " ")}</div>
+            </div>
+          ))}
+          {requests.length === 0 ? (
+            <div className="py-6 text-center text-sm text-muted-foreground">No delete requests.</div>
+          ) : null}
+        </div>
+      </Card>
     </div>
   );
 }

@@ -4,7 +4,10 @@ import { PurchasePageBody } from "@/components/erp/PurchasePageBody";
 export default function PurchaseEntryPage() {
   return (
     <>
-      <PageHeader title="Purchase entry" description="Select supplier, add lines — stock increases when you save." />
+      <PageHeader
+        title="Purchases"
+        description="Start from your supplier list, then open purchase entry to record stock inward."
+      />
       <PurchasePageBody />
     </>
   );

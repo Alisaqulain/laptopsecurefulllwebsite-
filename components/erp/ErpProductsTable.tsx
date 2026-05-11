@@ -16,10 +16,14 @@ import { Input } from "@/components/ui/input";
 import { ErpPanel } from "@/components/erp/ErpPanel";
 import { formatPrice } from "@/lib/utils";
 
+type PopulatedCategory = { _id: string; name: string; slug?: string };
+
 type Product = {
   _id: string;
   sku: string;
   name: string;
+  categoryId?: string | PopulatedCategory;
+  attributes?: Record<string, unknown>;
   brand?: string;
   status: string;
   pricing?: { sellingPrice: number; purchasePriceAvg?: number };
@@ -28,13 +32,39 @@ type Product = {
 
 const columnHelper = createColumnHelper<Product>();
 
+function categoryName(p: Product) {
+  const c = p.categoryId;
+  if (c && typeof c === "object" && "name" in c) return (c as PopulatedCategory).name;
+  return "—";
+}
+
+function specsSummary(p: Product) {
+  const a = p.attributes;
+  if (!a || typeof a !== "object") return "—";
+  const entries = Object.entries(a).filter(([, v]) => v !== undefined && v !== null && v !== "");
+  if (entries.length === 0) return "—";
+  return entries
+    .slice(0, 6)
+    .map(([k, v]) => `${k}: ${String(v)}`)
+    .join(" · ");
+}
+
 function stockLabel(onHand: number, threshold: number) {
   if (onHand <= 0) return "Out";
   if (onHand <= threshold) return "Low";
   return "OK";
 }
 
-export function ErpProductsTable({ showCost = true, readOnly = false }: { showCost?: boolean; readOnly?: boolean }) {
+export function ErpProductsTable({
+  showCost = true,
+  showSellingPrice = true,
+  readOnly = false,
+}: {
+  showCost?: boolean;
+  /** When false, list/selling amounts are hidden (e.g. sales staff stock view). */
+  showSellingPrice?: boolean;
+  readOnly?: boolean;
+}) {
   const [rows, setRows] = useState<Product[]>([]);
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
@@ -74,6 +104,20 @@ export function ErpProductsTable({ showCost = true, readOnly = false }: { showCo
           ]),
       columnHelper.accessor("sku", { header: "SKU", cell: (i) => <span className="font-mono text-xs">{i.getValue()}</span> }),
       columnHelper.accessor("name", { header: "Product" }),
+      columnHelper.accessor((r) => categoryName(r), {
+        id: "category",
+        header: "Category",
+        cell: (i) => <span className="text-xs">{i.getValue()}</span>,
+      }),
+      columnHelper.accessor((r) => specsSummary(r), {
+        id: "specs",
+        header: "Attributes",
+        cell: (i) => (
+          <span className="max-w-[240px] truncate text-xs text-muted-foreground" title={i.getValue()}>
+            {i.getValue()}
+          </span>
+        ),
+      }),
       columnHelper.accessor("brand", { header: "Brand", cell: (i) => i.getValue() ?? "—" }),
       columnHelper.accessor((r) => r.stock?.onHand ?? 0, {
         id: "stock",
@@ -89,11 +133,15 @@ export function ErpProductsTable({ showCost = true, readOnly = false }: { showCo
           return <span className={`text-xs font-medium ${cls}`}>{v}</span>;
         },
       }),
-      columnHelper.accessor((r) => r.pricing?.sellingPrice ?? 0, {
-        id: "price",
-        header: () => <span className="block text-right">Selling</span>,
-        cell: (i) => <span className="tabular-nums">{formatPrice(i.getValue())}</span>,
-      }),
+      ...(showSellingPrice
+        ? [
+            columnHelper.accessor((r) => r.pricing?.sellingPrice ?? 0, {
+              id: "price",
+              header: () => <span className="block text-right">Selling</span>,
+              cell: (i) => <span className="tabular-nums">{formatPrice(i.getValue())}</span>,
+            }),
+          ]
+        : []),
       ...(showCost
         ? [
             columnHelper.accessor((r) => r.pricing?.purchasePriceAvg ?? 0, {
@@ -105,7 +153,7 @@ export function ErpProductsTable({ showCost = true, readOnly = false }: { showCo
         : []),
       columnHelper.accessor("status", { header: "Status" }),
     ],
-    [showCost, readOnly],
+    [showCost, showSellingPrice, readOnly],
   );
 
   const table = useReactTable({
@@ -127,11 +175,13 @@ export function ErpProductsTable({ showCost = true, readOnly = false }: { showCo
       const row: Record<string, string | number> = {
         sku: p.sku,
         name: p.name,
+        category: categoryName(p),
+        specs: specsSummary(p),
         brand: p.brand ?? "",
         stock: p.stock?.onHand ?? 0,
-        selling: p.pricing?.sellingPrice ?? 0,
         status: p.status,
       };
+      if (showSellingPrice) row.selling = p.pricing?.sellingPrice ?? 0;
       if (showCost) row.cost = p.pricing?.purchasePriceAvg ?? 0;
       return row;
     });
@@ -150,11 +200,13 @@ export function ErpProductsTable({ showCost = true, readOnly = false }: { showCo
       const row: Record<string, string | number> = {
         sku: p.sku,
         name: p.name,
+        category: categoryName(p),
+        specs: specsSummary(p),
         brand: p.brand ?? "",
         stock: p.stock?.onHand ?? 0,
-        selling: p.pricing?.sellingPrice ?? 0,
         status: p.status,
       };
+      if (showSellingPrice) row.selling = p.pricing?.sellingPrice ?? 0;
       if (showCost) row.cost = p.pricing?.purchasePriceAvg ?? 0;
       return row;
     });
@@ -195,7 +247,7 @@ export function ErpProductsTable({ showCost = true, readOnly = false }: { showCo
         {loading ? (
           <div className="p-6 text-sm text-muted-foreground">Loading…</div>
         ) : (
-          <table className="w-full min-w-[800px] text-left text-sm">
+          <table className="w-full min-w-[960px] text-left text-sm">
             <thead className="bg-muted/80 text-xs uppercase text-muted-foreground">
               {table.getHeaderGroups().map((hg) => (
                 <tr key={hg.id}>

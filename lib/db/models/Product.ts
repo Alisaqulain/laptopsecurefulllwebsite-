@@ -7,13 +7,21 @@ const ProductSchema = new Schema(
     slug: { type: String, required: true, unique: true, index: true, lowercase: true, trim: true },
     categoryId: { type: Schema.Types.ObjectId, ref: "Category", required: true, index: true },
 
-    brand: { type: String, index: true },
-    processor: { type: String, index: true },
-    ram: { type: String, index: true },
-    storage: { type: String, index: true },
-    graphics: { type: String, index: true },
+    /** Category-driven specs (keys match Category.fieldDefinitions[].id) */
+    attributes: { type: Schema.Types.Mixed, default: {} },
+
+    /** Optional display brand (also often duplicated inside attributes) */
+    brand: { type: String, index: true, trim: true },
+
+    /** @deprecated Legacy flat keys — prefer `attributes`. Kept so old stock rows still match until migrated. */
+    processor: { type: String },
+    ram: { type: String },
+    storage: { type: String },
+    graphics: { type: String },
     color: { type: String },
-    condition: { type: String, enum: ["new", "refurbished", "used"], default: "used", index: true },
+    condition: { type: String },
+    model: { type: String },
+    productType: { type: String },
 
     images: { type: [String], default: [] },
     featured: { type: Boolean, default: false, index: true },
@@ -21,7 +29,6 @@ const ProductSchema = new Schema(
 
     pricing: {
       sellingPrice: { type: Number, required: true, min: 0 },
-      // purchasePrice is intentionally stored but must be hidden from sales/website admins via API projection
       purchasePriceAvg: { type: Number, default: 0, min: 0 },
       gstRate: { type: Number, default: 0, min: 0, max: 100 },
       mrp: { type: Number, default: 0, min: 0 },
@@ -39,12 +46,15 @@ const ProductSchema = new Schema(
       description: { type: String },
       keywords: { type: [String], default: [] },
     },
+    demoSeed: { type: Boolean, default: false, index: true },
   },
   { timestamps: true },
 );
 
-ProductSchema.index({ name: "text", brand: "text", processor: "text", ram: "text", storage: "text" });
+ProductSchema.index({
+  name: "text",
+  brand: "text",
+});
 
 export type ProductDoc = InferSchemaType<typeof ProductSchema> & { _id: mongoose.Types.ObjectId };
 export const ProductModel = mongoose.models.Product || mongoose.model("Product", ProductSchema);
-

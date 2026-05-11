@@ -14,13 +14,25 @@ type Row = {
   supplierId?: { name?: string } | null;
 };
 
-export function PurchaseListTable({ refreshKey = 0 }: { refreshKey?: number }) {
+export function PurchaseListTable({
+  refreshKey = 0,
+  /** When set (e.g. on purchase entry), list is filtered to that supplier — same table as “all purchases”, no second panel. */
+  supplierId,
+}: {
+  refreshKey?: number;
+  supplierId?: string;
+}) {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [rows, setRows] = useState<Row[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const limit = 15;
+  const sid = supplierId?.trim() ?? "";
+  const limit = sid ? 100 : 15;
+
+  useEffect(() => {
+    setPage(1);
+  }, [sid, refreshKey]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -28,6 +40,7 @@ export function PurchaseListTable({ refreshKey = 0 }: { refreshKey?: number }) {
     url.searchParams.set("page", String(page));
     url.searchParams.set("limit", String(limit));
     if (q.trim()) url.searchParams.set("q", q.trim());
+    if (sid) url.searchParams.set("supplierId", sid);
     const res = await fetch(url.toString(), { cache: "no-store" });
     const json = (await res.json().catch(() => null)) as any;
     if (res.ok) {
@@ -38,7 +51,7 @@ export function PurchaseListTable({ refreshKey = 0 }: { refreshKey?: number }) {
       setTotal(0);
     }
     setLoading(false);
-  }, [page, q]);
+  }, [page, q, sid]);
 
   useEffect(() => {
     void load();
@@ -50,8 +63,12 @@ export function PurchaseListTable({ refreshKey = 0 }: { refreshKey?: number }) {
     <ErpPanel>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-sm font-semibold">Recent purchases</h2>
-          <p className="mt-1 text-xs text-muted-foreground">Search by supplier invoice number.</p>
+          <h2 className="text-sm font-semibold">{sid ? "Purchases for this supplier" : "Recent purchases"}</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {sid
+              ? "Bills for the supplier selected in the form above. Change supplier there to refresh this list."
+              : "All suppliers — search by invoice number."}
+          </p>
         </div>
         <div className="flex max-w-sm flex-1 gap-2">
           <Input className="h-9" placeholder="Search invoice…" value={q} onChange={(e) => setQ(e.target.value)} />

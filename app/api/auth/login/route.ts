@@ -76,6 +76,7 @@ export async function POST(req: Request) {
     entityType: "User",
     entityId: String(user._id),
     message: "User logged in",
+    newValue: { name: user.name, email: user.email },
   }).catch(() => null);
 
   return ok({ user: { id: String(user._id), name: user.name, email: user.email, role: user.role } });

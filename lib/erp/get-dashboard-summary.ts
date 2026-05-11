@@ -2,6 +2,7 @@ import { connectToDatabase } from "@/lib/db/connect";
 import { PurchaseModel } from "@/lib/db/models/Purchase";
 import { SaleModel } from "@/lib/db/models/Sale";
 import { ProductModel } from "@/lib/db/models/Product";
+import { AuditLogModel } from "@/lib/db/models/AuditLog";
 
 function monthKey(d: Date) {
   const y = d.getFullYear();
@@ -49,6 +50,14 @@ export async function getSuperAdminDashboardSummary() {
   )
     .sort({ date: -1 })
     .limit(8)
+    .lean();
+
+  const recentActivity = await AuditLogModel.find(
+    { action: { $in: ["SALE_CREATE", "SALE_DELETE", "SALE_RESTORE", "PURCHASE_CREATE", "AUTH_LOGIN_SUCCESS"] } },
+    { action: 1, actorRole: 1, actorUserId: 1, createdAt: 1, message: 1, newValue: 1, entityType: 1, entityId: 1 },
+  )
+    .sort({ createdAt: -1 })
+    .limit(10)
     .lean();
 
   const now = new Date();
@@ -110,6 +119,16 @@ export async function getSuperAdminDashboardSummary() {
       invoiceNumber: p.invoiceNumber,
       date: p.date,
       total: p.totals?.finalTotal ?? 0,
+    })),
+    recentActivity: recentActivity.map((a) => ({
+      id: String(a._id),
+      action: a.action,
+      actorRole: a.actorRole ?? "",
+      createdAt: a.createdAt,
+      message: a.message ?? "",
+      newValue: a.newValue ?? null,
+      entityType: a.entityType,
+      entityId: String(a.entityId),
     })),
     salesTrend,
     purchaseTrend,

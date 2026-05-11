@@ -8,21 +8,33 @@ import { ErpPanel } from "@/components/erp/ErpPanel";
 import { formatDate } from "@/lib/utils";
 import { slugify } from "@/lib/inventory/productMatch";
 import { RoleKey } from "@/lib/auth/roles";
+import type { CategoryFieldDef } from "@/lib/inventory/categoryFieldTypes";
+import { CategoryFieldBuilderDialog } from "@/components/erp/CategoryFieldBuilderDialog";
+import { AddCategoryWizardDialog } from "@/components/erp/AddCategoryWizardDialog";
 
-type Cat = { _id: string; name: string; slug: string; status: string; createdAt?: string };
+type Cat = {
+  _id: string;
+  name: string;
+  slug: string;
+  status: string;
+  fieldDefinitions?: CategoryFieldDef[];
+  createdAt?: string;
+};
 
-export function ErpSimpleCategories({ role }: { role: string }) {
+export function ErpCategoryManager({ role }: { role: string }) {
   const isSuper = role === RoleKey.SUPER_ADMIN;
   const showAll = isSuper;
   const [rows, setRows] = useState<Cat[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
-  const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
   const [editing, setEditing] = useState<Cat | null>(null);
+  const [fieldEditor, setFieldEditor] = useState<Cat | null>(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [seeding, setSeeding] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    await fetch("/api/categories/seed-defaults", { method: "POST" }).catch(() => null);
     const url = showAll ? "/api/categories?all=1" : "/api/categories";
     const res = await fetch(url, { cache: "no-store" });
     const json = (await res.json().catch(() => null)) as any;
@@ -40,25 +52,17 @@ export function ErpSimpleCategories({ role }: { role: string }) {
     return c.name.toLowerCase().includes(s) || c.slug.toLowerCase().includes(s);
   });
 
-  async function createCategory() {
-    if (!name.trim()) {
-      toast.error("Name required");
-      return;
-    }
-    const s = slug.trim() || slugify(name);
-    const res = await fetch("/api/categories", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: name.trim(), slug: s, status: "active" }),
-    });
+  async function seedDefaults() {
+    if (!isSuper && role !== RoleKey.WEBSITE_ADMIN) return;
+    setSeeding(true);
+    const res = await fetch("/api/categories/seed-defaults", { method: "POST" });
     const json = (await res.json().catch(() => null)) as any;
+    setSeeding(false);
     if (!res.ok) {
-      toast.error(json?.error?.message || "Create failed");
+      toast.error(json?.error?.message || "Seed failed");
       return;
     }
-    toast.success("Category added");
-    setName("");
-    setSlug("");
+    toast.success(`Defaults: ${json?.data?.created ?? 0} created, ${json?.data?.updatedSchemas ?? 0} schemas filled.`);
     void load();
   }
 
@@ -98,8 +102,22 @@ export function ErpSimpleCategories({ role }: { role: string }) {
 
   return (
     <div className="space-y-4">
+      <AddCategoryWizardDialog open={wizardOpen} onClose={() => setWizardOpen(false)} onCreated={() => void load()} />
+
+      <CategoryFieldBuilderDialog
+        category={fieldEditor}
+        open={!!fieldEditor}
+        onClose={() => setFieldEditor(null)}
+        onSaved={() => void load()}
+      />
+
       <ErpPanel>
-        <h2 className="text-sm font-semibold">{editing ? "Edit category" : "Add category"}</h2>
+        <h2 className="text-sm font-semibold">{editing ? "Edit category" : "Categories"}</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {editing
+            ? "Update name, slug, or status. For field schema changes, use Configure fields on the row below."
+            : "Categories drive purchase forms and product attributes. Add a category in one step (basics + fields), or use Configure fields on an existing row to adjust the schema — no code changes."}
+        </p>
         {editing ? (
           <div className="mt-3 grid gap-3 md:grid-cols-3">
             <div>
@@ -121,7 +139,7 @@ export function ErpSimpleCategories({ role }: { role: string }) {
                 <option value="inactive">Inactive</option>
               </select>
             </div>
-            <div className="md:col-span-3 flex gap-2">
+            <div className="md:col-span-3 flex flex-wrap gap-2">
               <Button type="button" size="sm" onClick={saveEdit}>
                 Save
               </Button>
@@ -131,17 +149,9 @@ export function ErpSimpleCategories({ role }: { role: string }) {
             </div>
           </div>
         ) : (
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div className="flex-1">
-              <div className="mb-1 text-xs text-muted-foreground">Category name *</div>
-              <Input value={name} onChange={(e) => setName(e.target.value)} className="h-9" placeholder="e.g. Dell Laptop" />
-            </div>
-            <div className="flex-1">
-              <div className="mb-1 text-xs text-muted-foreground">Slug (optional)</div>
-              <Input value={slug} onChange={(e) => setSlug(e.target.value)} className="h-9" placeholder="Auto from name" />
-            </div>
-            <Button type="button" className="h-9" onClick={createCategory}>
-              Add
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button type="button" onClick={() => setWizardOpen(true)}>
+              Add category
             </Button>
           </div>
         )}
@@ -150,19 +160,27 @@ export function ErpSimpleCategories({ role }: { role: string }) {
       <ErpPanel>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-sm font-semibold">All categories</h2>
-          <div className="flex max-w-xs flex-1 gap-2">
-            <Input className="h-9" placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} />
-            <Button type="button" variant="outline" size="sm" onClick={load} disabled={loading}>
-              Refresh
-            </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {isSuper || role === RoleKey.WEBSITE_ADMIN ? (
+              <Button type="button" variant="secondary" size="sm" onClick={() => void seedDefaults()} disabled={seeding}>
+                {seeding ? "Seeding…" : "Seed Laptop / PC / Accessories / Parts"}
+              </Button>
+            ) : null}
+            <div className="flex max-w-xs flex-1 gap-2">
+              <Input className="h-9" placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} />
+              <Button type="button" variant="outline" size="sm" onClick={load} disabled={loading}>
+                Refresh
+              </Button>
+            </div>
           </div>
         </div>
         <div className="mt-3 overflow-x-auto rounded-md border border-border">
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="bg-muted/80 text-xs uppercase text-muted-foreground">
               <tr>
                 <th className="px-3 py-2 font-medium">Name</th>
                 <th className="px-3 py-2 font-medium">Slug</th>
+                <th className="px-3 py-2 font-medium">Fields</th>
                 <th className="px-3 py-2 font-medium">Status</th>
                 <th className="px-3 py-2 font-medium">Created</th>
                 <th className="px-3 py-2 text-right font-medium">Actions</th>
@@ -171,13 +189,13 @@ export function ErpSimpleCategories({ role }: { role: string }) {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
+                  <td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">
                     Loading…
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
+                  <td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">
                     No categories.
                   </td>
                 </tr>
@@ -186,11 +204,15 @@ export function ErpSimpleCategories({ role }: { role: string }) {
                   <tr key={c._id} className="border-t border-border">
                     <td className="px-3 py-2 font-medium">{c.name}</td>
                     <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{c.slug}</td>
+                    <td className="px-3 py-2 tabular-nums">{c.fieldDefinitions?.length ?? 0}</td>
                     <td className="px-3 py-2">{c.status}</td>
                     <td className="px-3 py-2 text-muted-foreground">{c.createdAt ? formatDate(c.createdAt) : "—"}</td>
                     <td className="px-3 py-2 text-right">
-                      <Button type="button" variant="outline" size="sm" className="mr-2 h-8" onClick={() => setEditing(c)}>
+                      <Button type="button" variant="outline" size="sm" className="mr-1 h-8" onClick={() => setEditing(c)}>
                         Edit
+                      </Button>
+                      <Button type="button" variant="secondary" size="sm" className="mr-1 h-8" onClick={() => setFieldEditor(c)}>
+                        Configure fields
                       </Button>
                       {isSuper ? (
                         <Button type="button" variant="destructive" size="sm" className="h-8" onClick={() => remove(c._id)}>

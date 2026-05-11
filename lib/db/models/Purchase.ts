@@ -5,15 +5,7 @@ const PurchaseItemSchema = new Schema(
     productId: { type: Schema.Types.ObjectId, ref: "Product", required: true, index: true },
     categoryId: { type: Schema.Types.ObjectId, ref: "Category", required: true, index: true },
     name: { type: String, required: true },
-
-    brand: { type: String },
-    processor: { type: String },
-    ram: { type: String },
-    storage: { type: String },
-    graphics: { type: String },
-    color: { type: String },
-    condition: { type: String },
-
+    attributes: { type: Schema.Types.Mixed, default: {} },
     quantity: { type: Number, required: true, min: 1 },
     purchasePrice: { type: Number, required: true, min: 0 },
     sellingPrice: { type: Number, default: 0, min: 0 },
@@ -44,6 +36,7 @@ const PurchaseSchema = new Schema(
     createdByUserId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     deletedAt: { type: Date, default: null, index: true },
     deletedByUserId: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    demoSeed: { type: Boolean, default: false, index: true },
   },
   { timestamps: true },
 );
@@ -52,4 +45,3 @@ PurchaseSchema.index({ invoiceNumber: 1, supplierId: 1 });
 
 export type PurchaseDoc = InferSchemaType<typeof PurchaseSchema> & { _id: mongoose.Types.ObjectId };
 export const PurchaseModel = mongoose.models.Purchase || mongoose.model("Purchase", PurchaseSchema);
-

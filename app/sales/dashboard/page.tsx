@@ -36,6 +36,13 @@ export default function SalesDashboardPage() {
           </Button>
         </ErpPanel>
         <ErpPanel>
+          <h2 className="text-sm font-semibold">Invoices</h2>
+          <p className="mt-2 text-sm text-muted-foreground">Search, view, download, or delete your own invoices.</p>
+          <Button asChild className="mt-4" variant="outline" size="sm">
+            <Link href="/sales/invoices">Open</Link>
+          </Button>
+        </ErpPanel>
+        <ErpPanel>
           <h2 className="text-sm font-semibold">Stock check</h2>
           <p className="mt-2 text-sm text-muted-foreground">See what is available to sell (no cost prices).</p>
           <Button asChild className="mt-4" variant="outline" size="sm">

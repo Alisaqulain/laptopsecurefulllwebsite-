@@ -34,3 +34,11 @@ export function slugify(input: string) {
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
 }
+
+/** Category / attribute field key from human label (e.g. "Screen Size" → "screen_size"). */
+export function fieldKeyFromLabel(label: string): string {
+  const raw = slugify(label).replace(/-/g, "_");
+  if (!raw) return `field_${Date.now().toString(36)}`;
+  if (!/^[a-zA-Z]/.test(raw)) return `k_${raw}`.slice(0, 80);
+  return raw.slice(0, 80);
+}

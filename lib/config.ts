@@ -1,5 +1,5 @@
 /** Public path (e.g. `/logo.jpg`) or same host URL — file must live under `public/` for local paths. */
-const siteLogo = (process.env.NEXT_PUBLIC_SITE_LOGO || "/logo.jpg").trim() || "/logo.jpg";
+const siteLogo = (process.env.NEXT_PUBLIC_SITE_LOGO || "/logo.svg").trim() || "/logo.svg";
 
 export function mimeTypeForPublicImage(path: string) {
   const p = path.toLowerCase().split("?")[0] ?? "";

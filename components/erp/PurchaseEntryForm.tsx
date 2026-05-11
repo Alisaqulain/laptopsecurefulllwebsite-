@@ -1,33 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
-import { useForm, useFieldArray, type Resolver } from "react-hook-form";
+import { useForm, useFieldArray, useWatch, type FieldPath, type Resolver, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { ErpPanel } from "@/components/erp/ErpPanel";
+import type { CategoryFieldDef } from "@/lib/inventory/categoryFieldTypes";
+import { DynamicCategoryFields } from "@/components/erp/DynamicCategoryFields";
+import { defaultAttributesForFieldDefs } from "@/lib/inventory/defaultAttributesForFieldDefs";
+import { extractCommerceFromAttributes } from "@/lib/inventory/purchaseCommerceAttributes";
 
-type Cat = { _id: string; name: string };
+type Cat = { _id: string; name: string; slug?: string; fieldDefinitions?: CategoryFieldDef[] };
 type Sup = { _id: string; name: string; phone?: string };
 
 const LineSchema = z.object({
   categoryId: z.string().min(1, "Pick category"),
-  productName: z.string().min(1, "Required"),
-  brand: z.string().optional(),
-  processor: z.string().optional(),
-  ram: z.string().optional(),
-  ssd: z.string().optional(),
-  color: z.string().optional(),
-  condition: z.enum(["new", "refurbished", "used"]).optional(),
-  quantity: z.coerce.number().int().min(1),
-  purchasePrice: z.coerce.number().min(0),
-  sellingPrice: z.coerce.number().min(0),
-  gstPercent: z.coerce.number().min(0).max(100).optional(),
-  notes: z.string().optional(),
+  attributes: z.record(z.string(), z.unknown()).default({}),
 });
 
 const FormSchema = z.object({
@@ -39,32 +31,37 @@ const FormSchema = z.object({
 });
 
 type FormValues = z.infer<typeof FormSchema>;
+type LineFieldKey = keyof FormValues["lines"][number];
+
+function lineField(index: number, key: LineFieldKey): FieldPath<FormValues> {
+  return `lines.${index}.${String(key)}` as FieldPath<FormValues>;
+}
 
 const emptyLine = (): FormValues["lines"][number] => ({
   categoryId: "",
-  productName: "",
-  brand: "",
-  processor: "",
-  ram: "",
-  ssd: "",
-  color: "",
-  condition: "used",
-  quantity: 1,
-  purchasePrice: 0,
-  sellingPrice: 0,
-  gstPercent: 18,
-  notes: "",
+  attributes: {},
 });
 
-export function PurchaseEntryForm({ onSaved }: { onSaved?: () => void }) {
+export function PurchaseEntryForm({
+  onSaved,
+  initialSupplierId = "",
+  onSupplierChange,
+}: {
+  onSaved?: () => void;
+  initialSupplierId?: string;
+  /** Keeps the purchases list below in sync with the supplier dropdown (single table, no duplicate panel). */
+  onSupplierChange?: (supplierId: string) => void;
+}) {
   const [categories, setCategories] = useState<Cat[]>([]);
   const [suppliers, setSuppliers] = useState<Sup[]>([]);
   const [metaLoading, setMetaLoading] = useState(true);
 
+  const initialSid = typeof initialSupplierId === "string" ? initialSupplierId.trim() : "";
+
   const form = useForm<FormValues>({
     resolver: zodResolver(FormSchema) as Resolver<FormValues>,
     defaultValues: {
-      supplierId: "",
+      supplierId: initialSid,
       date: new Date().toISOString().slice(0, 10),
       invoiceNumber: "",
       notes: "",
@@ -73,6 +70,8 @@ export function PurchaseEntryForm({ onSaved }: { onSaved?: () => void }) {
   });
 
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "lines" });
+
+  const watchedSupplierId = useWatch({ control: form.control, name: "supplierId" }) ?? "";
 
   useEffect(() => {
     (async () => {
@@ -89,18 +88,35 @@ export function PurchaseEntryForm({ onSaved }: { onSaved?: () => void }) {
     })();
   }, []);
 
+  /** Native <select> has no matching <option> until suppliers load — browser can drop the value; re-apply after fetch. */
+  useEffect(() => {
+    if (metaLoading) return;
+    const id = typeof initialSupplierId === "string" ? initialSupplierId.trim() : "";
+    if (!id) return;
+    const exists = suppliers.some((s) => String(s._id) === id);
+    if (!exists) return;
+    const cur = form.getValues("supplierId");
+    if (cur !== id) {
+      form.setValue("supplierId", id, { shouldDirty: false, shouldValidate: false });
+    }
+  }, [metaLoading, initialSupplierId, suppliers, form]);
+
+  useEffect(() => {
+    const id = typeof watchedSupplierId === "string" ? watchedSupplierId.trim() : "";
+    onSupplierChange?.(id);
+  }, [watchedSupplierId, onSupplierChange]);
+
   const watched = form.watch("lines");
   const totals = useMemo(() => {
     let qty = 0;
     let sub = 0;
     let gst = 0;
     for (const l of watched) {
-      const q = Number(l.quantity) || 0;
-      const p = Number(l.purchasePrice) || 0;
-      const g = Number(l.gstPercent) || 0;
-      const lineSub = q * p;
-      const lineGst = (lineSub * g) / 100;
-      qty += q;
+      const a = (l.attributes ?? {}) as Record<string, unknown>;
+      const c = extractCommerceFromAttributes(a);
+      const lineSub = c.quantity * c.purchasePrice;
+      const lineGst = (lineSub * c.gstPercent) / 100;
+      qty += c.quantity;
       sub += lineSub;
       gst += lineGst;
     }
@@ -115,12 +131,12 @@ export function PurchaseEntryForm({ onSaved }: { onSaved?: () => void }) {
       .map(([k]) => Number(k))
       .sort((a, b) => b - a);
     if (idxs.length === 0) {
-      toast.message("Select rows to remove");
+      toast.message("Select lines to remove");
       return;
     }
     for (const i of idxs) remove(i);
     setSelected({});
-    toast.success("Removed selected rows");
+    toast.success("Removed selected lines");
   }
 
   return (
@@ -137,18 +153,7 @@ export function PurchaseEntryForm({ onSaved }: { onSaved?: () => void }) {
             notes: values.notes || undefined,
             lines: values.lines.map((l) => ({
               categoryId: l.categoryId,
-              productName: l.productName,
-              brand: l.brand || undefined,
-              processor: l.processor || undefined,
-              ram: l.ram || undefined,
-              ssd: l.ssd || undefined,
-              color: l.color || undefined,
-              condition: l.condition,
-              quantity: l.quantity,
-              purchasePrice: l.purchasePrice,
-              sellingPrice: l.sellingPrice,
-              gstPercent: l.gstPercent,
-              notes: l.notes || undefined,
+              attributes: l.attributes ?? {},
             })),
           }),
         });
@@ -159,7 +164,7 @@ export function PurchaseEntryForm({ onSaved }: { onSaved?: () => void }) {
         }
         toast.success("Purchase saved — stock updated.");
         form.reset({
-          supplierId: "",
+          supplierId: (typeof initialSupplierId === "string" ? initialSupplierId.trim() : "") || "",
           date: new Date().toISOString().slice(0, 10),
           invoiceNumber: "",
           notes: "",
@@ -180,7 +185,7 @@ export function PurchaseEntryForm({ onSaved }: { onSaved?: () => void }) {
             >
               <option value="">Select…</option>
               {suppliers.map((s) => (
-                <option key={s._id} value={s._id}>
+                <option key={String(s._id)} value={String(s._id)}>
                   {s.name}
                 </option>
               ))}
@@ -202,12 +207,17 @@ export function PurchaseEntryForm({ onSaved }: { onSaved?: () => void }) {
       </ErpPanel>
 
       <ErpPanel>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold">Line items</h2>
-          <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-semibold">Line items</h2>
+            <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
+              Choose a <strong>category</strong> — all line fields (including quantity and prices) come from that category&apos;s schema.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
             <Button type="button" variant="outline" size="sm" onClick={() => append(emptyLine())}>
               <Plus className="mr-1 h-4 w-4" />
-              Add row
+              Add line
             </Button>
             <Button type="button" variant="destructive" size="sm" onClick={bulkDelete}>
               <Trash2 className="mr-1 h-4 w-4" />
@@ -216,106 +226,19 @@ export function PurchaseEntryForm({ onSaved }: { onSaved?: () => void }) {
           </div>
         </div>
 
-        <div className="mt-3 overflow-x-auto rounded-md border border-border">
-          <table className="w-full min-w-[1200px] text-left text-xs">
-            <thead className="bg-muted/80 text-[11px] font-semibold uppercase text-muted-foreground">
-              <tr>
-                <th className="w-8 px-2 py-2">
-                  <span className="sr-only">Select</span>
-                </th>
-                <th className="px-2 py-2">Category</th>
-                <th className="px-2 py-2">Product</th>
-                <th className="px-2 py-2">Brand</th>
-                <th className="px-2 py-2">CPU</th>
-                <th className="px-2 py-2">RAM</th>
-                <th className="px-2 py-2">SSD/HDD</th>
-                <th className="px-2 py-2">Color</th>
-                <th className="px-2 py-2">Cond.</th>
-                <th className="px-2 py-2">Qty</th>
-                <th className="px-2 py-2">Buy</th>
-                <th className="px-2 py-2">Sell</th>
-                <th className="px-2 py-2">GST%</th>
-                <th className="px-2 py-2">Notes</th>
-                <th className="px-2 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {fields.map((field, index) => (
-                <tr key={field.id} className="border-t border-border align-top">
-                  <td className="px-2 py-1">
-                    <input
-                      type="checkbox"
-                      checked={!!selected[index]}
-                      onChange={(e) => setSelected((s) => ({ ...s, [index]: e.target.checked }))}
-                      className="mt-2"
-                    />
-                  </td>
-                  <td className="px-1 py-1">
-                    <select
-                      className="h-8 min-w-[120px] rounded-md border border-input bg-background px-1 text-xs"
-                      disabled={metaLoading}
-                      {...form.register(`lines.${index}.categoryId`)}
-                    >
-                      <option value="">—</option>
-                      {categories.map((c) => (
-                        <option key={c._id} value={c._id}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-1 py-1">
-                    <Input {...form.register(`lines.${index}.productName`)} className="h-8 min-w-[120px]" />
-                  </td>
-                  <td className="px-1 py-1">
-                    <Input {...form.register(`lines.${index}.brand`)} className="h-8 min-w-[72px]" />
-                  </td>
-                  <td className="px-1 py-1">
-                    <Input {...form.register(`lines.${index}.processor`)} className="h-8 min-w-[88px]" />
-                  </td>
-                  <td className="px-1 py-1">
-                    <Input {...form.register(`lines.${index}.ram`)} className="h-8 w-16" />
-                  </td>
-                  <td className="px-1 py-1">
-                    <Input {...form.register(`lines.${index}.ssd`)} className="h-8 w-16" />
-                  </td>
-                  <td className="px-1 py-1">
-                    <Input {...form.register(`lines.${index}.color`)} className="h-8 w-16" />
-                  </td>
-                  <td className="px-1 py-1">
-                    <select
-                      className="h-8 w-[88px] rounded-md border border-input bg-background px-1 text-xs"
-                      {...form.register(`lines.${index}.condition`)}
-                    >
-                      <option value="new">New</option>
-                      <option value="refurbished">Refurb</option>
-                      <option value="used">Used</option>
-                    </select>
-                  </td>
-                  <td className="px-1 py-1">
-                    <Input type="number" {...form.register(`lines.${index}.quantity`)} className="h-8 w-14" />
-                  </td>
-                  <td className="px-1 py-1">
-                    <Input type="number" {...form.register(`lines.${index}.purchasePrice`)} className="h-8 w-20" />
-                  </td>
-                  <td className="px-1 py-1">
-                    <Input type="number" {...form.register(`lines.${index}.sellingPrice`)} className="h-8 w-20" />
-                  </td>
-                  <td className="px-1 py-1">
-                    <Input type="number" {...form.register(`lines.${index}.gstPercent`)} className="h-8 w-14" />
-                  </td>
-                  <td className="px-1 py-1">
-                    <Textarea {...form.register(`lines.${index}.notes`)} className="min-h-[32px] resize-y text-xs" rows={1} />
-                  </td>
-                  <td className="px-1 py-1">
-                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => remove(index)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="mt-4 space-y-4">
+          {fields.map((field, index) => (
+            <PurchaseLineCard
+              key={field.id}
+              index={index}
+              categories={categories}
+              metaLoading={metaLoading}
+              selected={!!selected[index]}
+              onSelectChange={(v) => setSelected((s) => ({ ...s, [index]: v }))}
+              onRemove={() => remove(index)}
+              form={form}
+            />
+          ))}
         </div>
 
         <div className="mt-4 flex flex-wrap justify-end gap-6 text-sm">
@@ -349,6 +272,94 @@ export function PurchaseEntryForm({ onSaved }: { onSaved?: () => void }) {
         </div>
       </ErpPanel>
     </form>
+  );
+}
+
+function PurchaseLineCard({
+  index,
+  categories,
+  metaLoading,
+  selected,
+  onSelectChange,
+  onRemove,
+  form,
+}: {
+  index: number;
+  categories: Cat[];
+  metaLoading: boolean;
+  selected: boolean;
+  onSelectChange: (v: boolean) => void;
+  onRemove: () => void;
+  form: UseFormReturn<FormValues>;
+}) {
+  const rawCatId = form.watch(lineField(index, "categoryId"));
+  const catId = typeof rawCatId === "string" ? rawCatId : "";
+  const cat = useMemo(() => categories.find((c) => c._id === catId), [categories, catId]);
+  const defs = cat?.fieldDefinitions ?? [];
+
+  const prevCatId = useRef<string>("");
+  useEffect(() => {
+    if (!catId) return;
+    const d = categories.find((c) => c._id === catId)?.fieldDefinitions ?? [];
+    if (!d.length) return;
+    const switched = prevCatId.current !== catId;
+    const cur = form.getValues(lineField(index, "attributes")) as Record<string, unknown> | undefined;
+    const empty = !cur || Object.keys(cur).length === 0;
+    if (switched || empty) {
+      form.setValue(lineField(index, "attributes"), defaultAttributesForFieldDefs(d) as FormValues["lines"][number]["attributes"]);
+    }
+    prevCatId.current = catId;
+  }, [catId, categories, form, index]);
+
+  const attrs = (form.watch(lineField(index, "attributes")) as Record<string, unknown>) ?? {};
+
+  function setAttr(id: string, value: unknown) {
+    const next = { ...attrs, [id]: value };
+    form.setValue(lineField(index, "attributes"), next, { shouldDirty: true });
+  }
+
+  const lineErrors = form.formState.errors.lines?.[index];
+  const lineErrorText =
+    lineErrors && typeof lineErrors === "object"
+      ? Object.values(lineErrors)
+          .map((e) => (typeof e === "object" && e && "message" in e ? String((e as { message?: string }).message) : ""))
+          .filter(Boolean)
+          .join(" · ")
+      : "";
+
+  return (
+    <div className="rounded-lg border border-border bg-card/50 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <input type="checkbox" checked={selected} onChange={(e) => onSelectChange(e.target.checked)} className="mt-1" />
+          <div>
+            <div className="mb-1 text-xs font-medium text-muted-foreground">Category *</div>
+            <select
+              className="h-9 min-w-[220px] rounded-md border border-input bg-background px-2 text-sm"
+              disabled={metaLoading}
+              {...form.register(lineField(index, "categoryId"))}
+            >
+              <option value="">— Select category —</option>
+              {categories.map((c) => (
+                <option key={c._id} value={c._id}>
+                  {c.name}
+                  {(c.fieldDefinitions?.length ?? 0) === 0 ? " (no fields)" : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <Button type="button" variant="ghost" size="icon" className="shrink-0" onClick={onRemove} aria-label="Remove line">
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <div className="mt-3 space-y-3">
+        <DynamicCategoryFields definitions={defs} values={attrs} onChange={setAttr} disabled={!catId} />
+      </div>
+
+      {lineErrorText ? <p className="mt-2 text-xs text-destructive">{lineErrorText}</p> : null}
+    </div>
   );
 }
 

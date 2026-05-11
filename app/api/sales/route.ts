@@ -26,7 +26,7 @@ function invoiceNo() {
 }
 
 export async function GET(req: Request) {
-  const auth = await requireApiSession({ roles: [RoleKey.SUPER_ADMIN] });
+  const auth = await requireApiSession({ roles: [RoleKey.SUPER_ADMIN, RoleKey.SALES_ADMIN] });
   if (!auth.ok) return auth.response;
 
   await connectToDatabase();
@@ -34,18 +34,44 @@ export async function GET(req: Request) {
   const page = Math.max(1, Number(url.searchParams.get("page") || 1) || 1);
   const limit = Math.min(50, Math.max(1, Number(url.searchParams.get("limit") || 20) || 20));
   const skip = (page - 1) * limit;
+  const q = url.searchParams.get("q")?.trim();
+
+  // ONE central sales collection — all roles see all sales.
+  const filter: Record<string, unknown> = { deletedAt: null };
+  if (q) {
+    filter.$or = [
+      { invoiceNumber: new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") },
+      { "customerSnapshot.name": new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") },
+      { "customerSnapshot.phone": new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") },
+    ];
+  }
+
+  // Both roles see all amounts — only purchase cost is hidden for SALES_ADMIN (handled at product API level).
+  const showAmounts = true;
+  const canDelete = true;
 
   const [rows, total] = await Promise.all([
-    SaleModel.find({ deletedAt: null })
+    SaleModel.find(filter)
       .sort({ date: -1 })
       .skip(skip)
       .limit(limit)
-      .select({ invoiceNumber: 1, date: 1, totals: 1, customerSnapshot: 1, paymentMode: 1 })
+      .select({ invoiceNumber: 1, date: 1, customerSnapshot: 1, paymentMode: 1, items: 1, totals: 1, createdByUserId: 1 })
       .lean(),
-    SaleModel.countDocuments({ deletedAt: null }),
+    SaleModel.countDocuments(filter),
   ]);
 
-  return ok({ sales: rows, page, limit, total });
+  // Resolve creator names in one query.
+  const { UserModel } = await import("@/lib/db/models/User");
+  const userIds = [...new Set(rows.map((r: any) => String(r.createdByUserId ?? "")).filter(Boolean))];
+  const users = userIds.length ? await UserModel.find({ _id: { $in: userIds } }).select({ name: 1, role: 1 }).lean() : [];
+  const userMap = new Map(users.map((u: any) => [String(u._id), { name: u.name as string, role: u.role as string }]));
+
+  const sales = rows.map((r: any) => ({
+    ...r,
+    createdBy: r.createdByUserId ? (userMap.get(String(r.createdByUserId)) ?? null) : null,
+  }));
+
+  return ok({ sales, page, limit, total, meta: { showAmounts, canDelete } });
 }
 
 export async function POST(req: Request) {
@@ -60,14 +86,6 @@ export async function POST(req: Request) {
 
   const productId = new Types.ObjectId(parsed.data.productId);
   const qty = parsed.data.quantity;
-  const price = parsed.data.price;
-  const discount = parsed.data.discount ?? 0;
-  const gstRate = parsed.data.gstPercent ?? 0;
-
-  const lineNet = qty * price - discount;
-  if (lineNet < 0) return fail("Discount too large", { status: 400, code: "BAD_DISCOUNT" });
-  const gstAmount = (lineNet * gstRate) / 100;
-  const lineTotal = lineNet + gstAmount;
 
   const session = await mongoose.startSession();
   let saleId: string | null = null;
@@ -77,8 +95,19 @@ export async function POST(req: Request) {
     await session.withTransaction(async () => {
       const product = await ProductModel.findById(productId).session(session);
       if (!product) throw new Error("NO_PRODUCT");
+
+      const price = parsed.data.price;
+      const discount = parsed.data.discount ?? 0;
+      const gstRate = parsed.data.gstPercent ?? 0;
+
       const onHand = product.stock?.onHand ?? 0;
       if (onHand < qty) throw new Error("NO_STOCK");
+      if (price <= 0) throw new Error("BAD_PRICE");
+
+      const lineNet = qty * price - discount;
+      if (lineNet < 0) throw new Error("BAD_DISCOUNT");
+      const gstAmount = (lineNet * gstRate) / 100;
+      const lineTotal = lineNet + gstAmount;
 
       inv = invoiceNo();
       const exists = await SaleModel.findOne({ invoiceNumber: inv }).session(session).lean();
@@ -134,6 +163,8 @@ export async function POST(req: Request) {
     const code = e instanceof Error ? e.message : "";
     if (code === "NO_PRODUCT") return fail("Product not found", { status: 404, code: "NOT_FOUND" });
     if (code === "NO_STOCK") return fail("Not enough stock for this quantity", { status: 400, code: "NO_STOCK" });
+    if (code === "BAD_PRICE") return fail("Product has no selling price on file", { status: 400, code: "BAD_PRICE" });
+    if (code === "BAD_DISCOUNT") return fail("Discount too large", { status: 400, code: "BAD_DISCOUNT" });
     return fail("Could not save sale", { status: 500, code: "SALE_FAILED" });
   } finally {
     await session.endSession();

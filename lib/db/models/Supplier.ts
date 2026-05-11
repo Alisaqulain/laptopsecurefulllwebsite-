@@ -8,6 +8,7 @@ const SupplierSchema = new Schema(
     address: { type: String },
     status: { type: String, enum: ["active", "inactive"], default: "active", index: true },
     notes: { type: String },
+    demoSeed: { type: Boolean, default: false, index: true },
   },
   { timestamps: true },
 );

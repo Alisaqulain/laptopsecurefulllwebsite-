@@ -10,23 +10,26 @@ import { SupplierModel } from "@/lib/db/models/Supplier";
 import { ProductModel } from "@/lib/db/models/Product";
 import { PurchaseModel } from "@/lib/db/models/Purchase";
 import { slugify } from "@/lib/inventory/productMatch";
+import { findProductForPurchaseLine, type PurchaseLinePayload } from "@/lib/inventory/findProductForPurchaseLine";
+import { validateCategoryAttributes, compactAttributes } from "@/lib/inventory/validateCategoryAttributes";
+import type { CategoryFieldDef } from "@/lib/inventory/categoryFieldTypes";
 import { writeAuditLog } from "@/lib/audit/writeAuditLog";
+import { deriveProductNameFromAttributes } from "@/lib/inventory/deriveProductNameFromAttributes";
+import { extractCommerceFromAttributes, specAttributesOnly } from "@/lib/inventory/purchaseCommerceAttributes";
 
 const LineSchema = z.object({
   categoryId: z.string().min(1),
-  productName: z.string().min(1).max(200),
-  brand: z.string().max(80).optional(),
-  processor: z.string().max(120).optional(),
-  ram: z.string().max(60).optional(),
-  ssd: z.string().max(60).optional(),
-  color: z.string().max(60).optional(),
-  condition: z.enum(["new", "refurbished", "used"]).optional(),
-  quantity: z.number().int().min(1),
-  purchasePrice: z.number().min(0),
-  sellingPrice: z.number().min(0),
-  gstPercent: z.number().min(0).max(100).optional(),
-  notes: z.string().max(500).optional(),
+  attributes: z.record(z.string(), z.unknown()).optional().default({}),
 });
+
+type LineIn = z.infer<typeof LineSchema>;
+
+class LineValidationError extends Error {
+  constructor(public issues: string[]) {
+    super(issues.join("; "));
+    this.name = "LineValidationError";
+  }
+}
 
 const PostSchema = z.object({
   supplierId: z.string().min(1),
@@ -35,6 +38,15 @@ const PostSchema = z.object({
   lines: z.array(LineSchema).min(1),
   notes: z.string().max(2000).optional(),
 });
+
+function toPayload(productName: string, attributes: Record<string, unknown>): PurchaseLinePayload {
+  return { productName, attributes };
+}
+
+function deriveBrand(attrs: Record<string, unknown>): string {
+  const b = attrs.brand ?? attrs.accessoryBrand;
+  return typeof b === "string" ? b.trim() : "";
+}
 
 async function uniqueSku(s: mongoose.ClientSession): Promise<string> {
   for (let i = 0; i < 50; i++) {
@@ -55,6 +67,40 @@ async function uniqueSlug(base: string, s: mongoose.ClientSession): Promise<stri
   return `${root}-${randomBytes(3).toString("hex")}`;
 }
 
+async function createProductFromLine(
+  session: mongoose.ClientSession,
+  catId: Types.ObjectId,
+  productName: string,
+  specAttrs: Record<string, unknown>,
+  qty: number,
+  purchasePrice: number,
+  sellingPrice: number,
+  gstRate: number,
+) {
+  const sku = await uniqueSku(session);
+  const slug = await uniqueSlug(productName, session);
+  const brand = deriveBrand(specAttrs);
+
+  const doc: Record<string, unknown> = {
+    sku,
+    slug,
+    categoryId: catId,
+    name: productName.trim(),
+    attributes: compactAttributes(specAttrs),
+    brand: brand || undefined,
+    pricing: {
+      sellingPrice,
+      purchasePriceAvg: purchasePrice,
+      gstRate,
+    },
+    stock: { onHand: qty, lowStockThreshold: 2 },
+    status: "active",
+  };
+
+  const [created] = await ProductModel.create([doc], { session });
+  return created;
+}
+
 export async function GET(req: Request) {
   const auth = await requireApiSession({ roles: [RoleKey.SUPER_ADMIN] });
   if (!auth.ok) return auth.response;
@@ -62,11 +108,16 @@ export async function GET(req: Request) {
   await connectToDatabase();
   const url = new URL(req.url);
   const page = Math.max(1, Number(url.searchParams.get("page") || 1) || 1);
-  const limit = Math.min(50, Math.max(1, Number(url.searchParams.get("limit") || 20) || 20));
+  const supplierFilter = url.searchParams.get("supplierId")?.trim();
+  const hasSupplier = Boolean(supplierFilter && Types.ObjectId.isValid(supplierFilter));
+  const requestedLimit = Number(url.searchParams.get("limit") || 20) || 20;
+  const maxLimit = hasSupplier ? 100 : 50;
+  const limit = Math.min(maxLimit, Math.max(1, requestedLimit));
   const skip = (page - 1) * limit;
   const q = url.searchParams.get("q")?.trim();
 
   const filter: Record<string, unknown> = { deletedAt: null };
+  if (hasSupplier) filter.supplierId = new Types.ObjectId(supplierFilter);
   if (q) filter.invoiceNumber = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
 
   const [rows, total] = await Promise.all([
@@ -115,71 +166,72 @@ export async function POST(req: Request) {
         const cat = await CategoryModel.findById(catId).session(session).lean();
         if (!cat) throw new Error("BAD_CATEGORY");
 
-        const cond: "new" | "refurbished" | "used" =
-          line.condition === "new" || line.condition === "refurbished" ? line.condition : "used";
+        const defs: CategoryFieldDef[] = ((cat as { fieldDefinitions?: CategoryFieldDef[] }).fieldDefinitions ??
+          []) as CategoryFieldDef[];
+        if (!defs.length) {
+          throw new Error("BAD_CATEGORY_SCHEMA");
+        }
 
-        const match = {
-          categoryId: catId,
-          name: line.productName.trim(),
-          brand: (line.brand ?? "").trim(),
-          processor: (line.processor ?? "").trim(),
-          ram: (line.ram ?? "").trim(),
-          storage: (line.ssd ?? "").trim(),
-          color: (line.color ?? "").trim(),
-          condition: cond,
-        };
+        const validated = validateCategoryAttributes(defs, line.attributes ?? {});
+        if (!validated.ok) {
+          throw new LineValidationError(validated.errors);
+        }
 
-        let product = await ProductModel.findOne(match).session(session);
-        const qty = line.quantity;
-        const purchasePrice = line.purchasePrice;
-        const sellingPrice = line.sellingPrice;
-        const gstRate = line.gstPercent ?? 0;
+        const attrs = compactAttributes(validated.normalized);
+        const catSlug = (cat as { slug?: string }).slug;
+        const productName = deriveProductNameFromAttributes(catSlug, attrs);
+        const commerce = extractCommerceFromAttributes(attrs);
+        const { quantity: qty, purchasePrice, sellingPrice, gstPercent: gstRate, notes: lineNotes } = commerce;
+        const specAttrs = compactAttributes(specAttributesOnly(attrs));
+        const payload = toPayload(productName, attrs);
         const base = qty * purchasePrice;
         const gstAmount = (base * gstRate) / 100;
         const lineTotal = base + gstAmount;
 
+        const catLean = {
+          _id: cat._id as Types.ObjectId,
+          slug: catSlug,
+          fieldDefinitions: defs,
+        };
+
+        const { product: found, legacy } = await findProductForPurchaseLine(catLean, payload, session);
+        let product = found;
+
         if (!product) {
-          const sku = await uniqueSku(session);
-          const slug = await uniqueSlug(line.productName, session);
-          const [created] = await ProductModel.create(
-            [
-              {
-                sku,
-                slug,
-                categoryId: catId,
-                name: line.productName.trim(),
-                brand: line.brand?.trim(),
-                processor: line.processor?.trim(),
-                ram: line.ram?.trim(),
-                storage: line.ssd?.trim(),
-                color: line.color?.trim(),
-                condition: cond,
-                pricing: {
-                  sellingPrice,
-                  purchasePriceAvg: purchasePrice,
-                  gstRate,
-                },
-                stock: { onHand: qty, lowStockThreshold: 2 },
-              },
-            ],
-            { session },
+          product = await createProductFromLine(
+            session,
+            catId,
+            productName,
+            specAttrs,
+            qty,
+            purchasePrice,
+            sellingPrice,
+            gstRate,
           );
-          product = created;
         } else {
           const oldOn = product.stock?.onHand ?? 0;
           const oldAvg = product.pricing?.purchasePriceAvg ?? 0;
-          const newAvg =
-            oldOn + qty === 0 ? purchasePrice : (oldOn * oldAvg + qty * purchasePrice) / (oldOn + qty);
+          const newAvg = oldOn + qty === 0 ? purchasePrice : (oldOn * oldAvg + qty * purchasePrice) / (oldOn + qty);
+
+          const $set: Record<string, unknown> = {
+            "pricing.purchasePriceAvg": newAvg,
+            "pricing.sellingPrice": sellingPrice,
+            "pricing.gstRate": gstRate,
+            name: productName.trim(),
+            brand: deriveBrand(specAttrs) || "",
+            attributes: specAttrs,
+          };
+
+          const $unset: Record<string, string> = {};
+          if (legacy) {
+            ["processor", "ram", "storage", "graphics", "color", "condition", "model", "productType", "capacity", "version"].forEach((k) => {
+              $unset[k] = "";
+            });
+          }
+
           await ProductModel.findByIdAndUpdate(
             product._id,
-            {
-              $inc: { "stock.onHand": qty },
-              $set: {
-                "pricing.purchasePriceAvg": newAvg,
-                "pricing.sellingPrice": sellingPrice,
-                "pricing.gstRate": gstRate,
-              },
-            },
+            { $inc: { "stock.onHand": qty }, $set: $set, ...(Object.keys($unset).length ? { $unset } : {}) },
             { session },
           );
         }
@@ -187,20 +239,15 @@ export async function POST(req: Request) {
         items.push({
           productId: product!._id,
           categoryId: catId,
-          name: line.productName.trim(),
-          brand: line.brand?.trim(),
-          processor: line.processor?.trim(),
-          ram: line.ram?.trim(),
-          storage: line.ssd?.trim(),
-          color: line.color?.trim(),
-          condition: cond,
+          name: productName.trim(),
+          attributes: attrs,
           quantity: qty,
           purchasePrice,
           sellingPrice,
           gstRate,
           gstAmount,
           lineTotal,
-          notes: line.notes?.trim(),
+          notes: lineNotes || undefined,
         });
 
         totalQty += qty;
@@ -232,6 +279,15 @@ export async function POST(req: Request) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Transaction failed";
     if (msg === "BAD_CATEGORY") return fail("Invalid category on a line item", { status: 400, code: "BAD_CATEGORY" });
+    if (msg === "BAD_CATEGORY_SCHEMA") {
+      return fail("A category has no field schema. Configure fields under Categories or run seed defaults.", {
+        status: 400,
+        code: "BAD_CATEGORY_SCHEMA",
+      });
+    }
+    if (e instanceof LineValidationError) {
+      return fail(e.message, { status: 400, code: "LINE_VALIDATION" });
+    }
     return fail("Could not save purchase. Try again.", { status: 500, code: "PURCHASE_FAILED" });
   } finally {
     await session.endSession();

@@ -49,6 +49,7 @@ const SaleSchema = new Schema(
     deletedAt: { type: Date, default: null, index: true },
     deletedByUserId: { type: Schema.Types.ObjectId, ref: "User", default: null },
     deleteReason: { type: String },
+    demoSeed: { type: Boolean, default: false, index: true },
   },
   { timestamps: true },
 );
