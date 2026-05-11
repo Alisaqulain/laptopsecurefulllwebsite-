@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { siteConfig } from "@/lib/config";
+import { mimeTypeForPublicImage, siteConfig } from "@/lib/config";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
@@ -12,9 +12,9 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#020817",
     icons: [
       {
-        src: "/logo.jpg",
+        src: siteConfig.logo,
         sizes: "any",
-        type: "image/jpeg",
+        type: mimeTypeForPublicImage(siteConfig.logo),
       },
     ],
   };

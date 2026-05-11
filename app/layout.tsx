@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Orbitron, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { RootAppShell } from "@/components/layout/RootAppShell";
-import { siteConfig } from "@/lib/config";
+import { mimeTypeForPublicImage, siteConfig } from "@/lib/config";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -54,7 +54,7 @@ export const metadata: Metadata = {
     siteName: siteConfig.name,
     images: [
       {
-        url: "/logo.jpg",
+        url: siteConfig.logo,
         width: 1536,
         height: 1024,
         alt: siteConfig.name,
@@ -65,7 +65,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: `${siteConfig.name} — ${siteConfig.tagline}`,
     description: siteConfig.description,
-    images: ["/logo.jpg"],
+    images: [siteConfig.logo],
     creator: "@laptopsecure",
   },
   robots: {
@@ -80,12 +80,8 @@ export const metadata: Metadata = {
     },
   },
   icons: {
-    icon: [
-      { url: "/logo.jpg", type: "image/jpeg" },
-    ],
-    apple: [
-      { url: "/logo.jpg" },
-    ],
+    icon: [{ url: siteConfig.logo, type: mimeTypeForPublicImage(siteConfig.logo) }],
+    apple: [{ url: siteConfig.logo }],
   },
   manifest: "/manifest.webmanifest",
   alternates: {
@@ -109,7 +105,9 @@ export default function RootLayout({
               "@type": "Organization",
               name: siteConfig.name,
               url: siteConfig.url,
-              logo: `${siteConfig.url}/logo.jpg`,
+              logo: siteConfig.logo.startsWith("http")
+                ? siteConfig.logo
+                : `${siteConfig.url}${siteConfig.logo.startsWith("/") ? siteConfig.logo : `/${siteConfig.logo}`}`,
               email: siteConfig.contact.email,
               telephone: siteConfig.contact.phone,
               address: {

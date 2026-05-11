@@ -1,10 +1,23 @@
+/** Public path (e.g. `/logo.jpg`) or same host URL — file must live under `public/` for local paths. */
+const siteLogo = (process.env.NEXT_PUBLIC_SITE_LOGO || "/logo.jpg").trim() || "/logo.jpg";
+
+export function mimeTypeForPublicImage(path: string) {
+  const p = path.toLowerCase().split("?")[0] ?? "";
+  if (p.endsWith(".png")) return "image/png";
+  if (p.endsWith(".webp")) return "image/webp";
+  if (p.endsWith(".svg")) return "image/svg+xml";
+  if (p.endsWith(".ico")) return "image/x-icon";
+  return "image/jpeg";
+}
+
 export const siteConfig = {
   name: "LaptopSecure",
   tagline: "Buy • Sell • Upgrade • Repair",
   description:
     "India's premium marketplace for second-hand, refurbished, and new laptops, gaming PCs, accessories, and expert repair services. Trade-in, upgrade, and shop with confidence.",
   url: process.env.NEXT_PUBLIC_SITE_URL || "https://laptopsecure.com",
-  ogImage: "/logo.jpg",
+  /** Navbar, footer, favicon, OG/Twitter — override with `NEXT_PUBLIC_SITE_LOGO`. */
+  logo: siteLogo,
   whatsappNumber:
     process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "91XXXXXXXXXX",
   contact: {

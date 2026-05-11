@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { siteConfig } from "@/lib/config";
 
 interface LogoProps {
   className?: string;
@@ -30,7 +31,7 @@ export function Logo({
     <Link
       href="/"
       className={cn("group inline-flex items-center", className)}
-      aria-label="LaptopSecure home"
+      aria-label={`${siteConfig.name} home`}
     >
       <motion.span
         whileHover={{ scale: 1.04 }}
@@ -43,8 +44,8 @@ export function Logo({
         }}
       >
         <Image
-          src="/logo.jpg"
-          alt="LaptopSecure"
+          src={siteConfig.logo}
+          alt={siteConfig.name}
           fill
           priority={priority}
           sizes={`${width}px`}
