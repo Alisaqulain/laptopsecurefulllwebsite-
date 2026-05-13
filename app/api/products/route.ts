@@ -85,10 +85,30 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const q = url.searchParams.get("q")?.trim();
   const status = url.searchParams.get("status");
+  const stockLevel = url.searchParams.get("stockLevel")?.trim();
 
   const filter: Record<string, unknown> = {};
-  if (q) filter.$text = { $search: q };
   if (status && ["active", "inactive"].includes(status)) filter.status = status;
+
+  const andParts: Record<string, unknown>[] = [];
+  if (q) andParts.push({ $text: { $search: q } });
+  if (stockLevel === "out") {
+    andParts.push({ $expr: { $lte: [{ $ifNull: ["$stock.onHand", 0] }, 0] } });
+  } else if (stockLevel === "low") {
+    andParts.push({
+      $expr: {
+        $and: [
+          { $gt: [{ $ifNull: ["$stock.onHand", 0] }, 0] },
+          { $lte: [{ $ifNull: ["$stock.onHand", 0] }, { $ifNull: ["$stock.lowStockThreshold", 2] }] },
+        ],
+      },
+    });
+  }
+  if (andParts.length === 1) {
+    Object.assign(filter, andParts[0]);
+  } else if (andParts.length > 1) {
+    filter.$and = andParts;
+  }
 
   const projection = projectForRole(auth.session.role);
   const products = await ProductModel.find(filter, projection as any)

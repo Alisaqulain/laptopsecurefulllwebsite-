@@ -319,7 +319,7 @@ export function ErpSimpleSuppliers() {
                     purchases.map((p) => (
                       <tr key={p._id} className="border-t border-border">
                         <td className="px-3 py-2 text-muted-foreground">{formatDate(p.date)}</td>
-                        <td className="px-3 py-2 font-mono text-xs">{p.invoiceNumber}</td>
+                        <td className="px-3 py-2 font-mono text-xs">{p.invoiceNumber?.trim() ? p.invoiceNumber : "—"}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatPrice(p.totals?.finalTotal ?? 0)}</td>
                       </tr>
                     ))

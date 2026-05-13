@@ -97,8 +97,9 @@ export function ErpDemoDataToolbar({ enabled }: Props) {
               Clear demo data
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Are you sure you want to clear demo data? Demo categories, suppliers, purchases, sales, and demo product stock
-              will be removed. Admin accounts and settings stay as they are.
+              Are you sure you want to clear demo data? Demo categories, suppliers, demo-tagged rows, and demo catalogue
+              products go away. Sales or purchases recorded only against that demo catalogue are removed too, so dashboard
+              totals drop accordingly. Admin accounts and settings stay as they are.
             </p>
             <div className="mt-5 flex flex-wrap justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setConfirmClear(false)} disabled={clearing}>

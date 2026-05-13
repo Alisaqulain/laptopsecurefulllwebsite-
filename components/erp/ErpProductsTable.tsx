@@ -59,16 +59,23 @@ export function ErpProductsTable({
   showCost = true,
   showSellingPrice = true,
   readOnly = false,
+  initialSearch = "",
 }: {
   showCost?: boolean;
   /** When false, list/selling amounts are hidden (e.g. sales staff stock view). */
   showSellingPrice?: boolean;
   readOnly?: boolean;
+  /** Prefill search from URL (e.g. `/erp/stock?q=...`). */
+  initialSearch?: string;
 }) {
   const [rows, setRows] = useState<Product[]>([]);
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(initialSearch);
   const [loading, setLoading] = useState(true);
   const [rowSelection, setRowSelection] = useState({});
+
+  useEffect(() => {
+    setQ(initialSearch);
+  }, [initialSearch]);
 
   useEffect(() => {
     (async () => {
@@ -169,6 +176,27 @@ export function ErpProductsTable({
     getRowId: (r) => r._id,
   });
 
+  const selectedProducts = useMemo(() => {
+    const sel = rowSelection as Record<string, boolean>;
+    const ids = new Set(Object.keys(sel).filter((id) => sel[id]));
+    return rows.filter((r) => ids.has(r._id));
+  }, [rows, rowSelection]);
+
+  const selectionCount = selectedProducts.length;
+  const selectedUnitTotal = useMemo(
+    () => selectedProducts.reduce((s, p) => s + (p.stock?.onHand ?? 0), 0),
+    [selectedProducts],
+  );
+  const selectedRetailValue = useMemo(
+    () =>
+      selectedProducts.reduce((s, p) => {
+        const on = p.stock?.onHand ?? 0;
+        const price = p.pricing?.sellingPrice ?? 0;
+        return s + on * price;
+      }, 0),
+    [selectedProducts],
+  );
+
   function exportCsv() {
     const data = table.getSelectedRowModel().rows.length ? table.getSelectedRowModel().rows.map((r) => r.original) : rows;
     const flat = data.map((p) => {
@@ -242,6 +270,22 @@ export function ErpProductsTable({
           </div>
         ) : null}
       </div>
+
+      {!readOnly && selectionCount > 0 ? (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
+          <span className="text-muted-foreground">
+            Selected rows: <strong className="text-foreground">{selectionCount}</strong>
+            <span className="mx-2 opacity-30">•</span>
+            Units on hand: <strong className="text-foreground tabular-nums">{selectedUnitTotal}</strong>
+            {showSellingPrice ? (
+              <>
+                <span className="mx-2 opacity-30">•</span>
+                At selling price: <strong className="text-foreground tabular-nums">{formatPrice(selectedRetailValue)}</strong>
+              </>
+            ) : null}
+          </span>
+        </div>
+      ) : null}
 
       <div className="mt-4 overflow-x-auto rounded-md border border-border">
         {loading ? (

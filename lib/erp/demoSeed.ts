@@ -225,6 +225,31 @@ function isoDay(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Rows whose every line references one of these product ids (e.g. demo catalogue stock). */
+function allLineItemsUseProductIds(productIds: Types.ObjectId[]) {
+  return {
+    $expr: {
+      $and: [
+        { $gt: [{ $size: { $ifNull: ["$items", []] } }, 0] },
+        {
+          $eq: [
+            { $size: { $ifNull: ["$items", []] } },
+            {
+              $size: {
+                $filter: {
+                  input: { $ifNull: ["$items", []] },
+                  as: "it",
+                  cond: { $in: ["$$it.productId", productIds] },
+                },
+              },
+            },
+          ],
+        },
+      ],
+    },
+  };
+}
+
 export async function clearDemoData(session?: ClientSession) {
   await connectToDatabase();
   const opts = session ? { session } : {};
@@ -237,8 +262,24 @@ export async function clearDemoData(session?: ClientSession) {
   const demoCats = await catQ.lean();
   const demoCatIds = demoCats.map((c) => c._id);
 
-  await SaleModel.deleteMany({ demoSeed: true }, opts);
-  await PurchaseModel.deleteMany({ demoSeed: true }, opts);
+  const demoProductParts: Array<Record<string, unknown>> = [{ demoSeed: true }];
+  if (demoCatIds.length) demoProductParts.push({ categoryId: { $in: demoCatIds } });
+  let prodQ = ProductModel.find({ $or: demoProductParts }).select("_id");
+  if (session) prodQ = prodQ.session(session);
+  const demoProductRows = await prodQ.lean();
+  const demoProductIds = demoProductRows.map((p) => p._id as Types.ObjectId);
+
+  const saleClearFilter: Record<string, unknown> =
+    demoProductIds.length > 0
+      ? { $or: [{ demoSeed: true }, allLineItemsUseProductIds(demoProductIds)] }
+      : { demoSeed: true };
+  const purchaseClearFilter: Record<string, unknown> =
+    demoProductIds.length > 0
+      ? { $or: [{ demoSeed: true }, allLineItemsUseProductIds(demoProductIds)] }
+      : { demoSeed: true };
+
+  await SaleModel.deleteMany(saleClearFilter, opts);
+  await PurchaseModel.deleteMany(purchaseClearFilter, opts);
   await ProductModel.deleteMany(
     demoCatIds.length ? { $or: [{ demoSeed: true }, { categoryId: { $in: demoCatIds } }] } : { demoSeed: true },
     opts,

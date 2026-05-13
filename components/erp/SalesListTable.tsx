@@ -96,10 +96,12 @@ export function SalesListTable({
     if (!confirm(`Delete ${selectedCount} sale(s)? Stock will be restored for each invoice.`)) return;
     setDeletingId("bulk");
     try {
-      const results = await Promise.all(
-        selected.map(async (r) => (await fetch(`/api/sales/${r._id}`, { method: "DELETE" })).ok),
-      );
-      const okCount = results.filter(Boolean).length;
+      /** Sequential deletes avoid MongoDB transaction / write conflicts when many sales touch the same products. */
+      let okCount = 0;
+      for (const r of selected) {
+        const res = await fetch(`/api/sales/${r._id}`, { method: "DELETE" });
+        if (res.ok) okCount += 1;
+      }
       if (okCount === selectedCount) toast.success(`Deleted ${okCount} sale(s).`);
       else toast.error(`Deleted ${okCount}/${selectedCount}. Some failed.`);
       void load();

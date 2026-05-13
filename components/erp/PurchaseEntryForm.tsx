@@ -25,7 +25,7 @@ const LineSchema = z.object({
 const FormSchema = z.object({
   supplierId: z.string().min(1, "Select supplier"),
   date: z.string().min(1),
-  invoiceNumber: z.string().min(1, "Invoice # required"),
+  invoiceNumber: z.string().max(80, "At most 80 characters").optional().default(""),
   lines: z.array(LineSchema).min(1, "Add at least one line"),
   notes: z.string().optional(),
 });
@@ -149,7 +149,7 @@ export function PurchaseEntryForm({
           body: JSON.stringify({
             supplierId: values.supplierId,
             date: values.date,
-            invoiceNumber: values.invoiceNumber,
+            invoiceNumber: (values.invoiceNumber ?? "").trim(),
             notes: values.notes || undefined,
             lines: values.lines.map((l) => ({
               categoryId: l.categoryId,
@@ -196,8 +196,8 @@ export function PurchaseEntryForm({
             <Input type="date" {...form.register("date")} className="h-9" />
             <FieldError msg={form.formState.errors.date?.message} />
           </Field>
-          <Field label="Supplier invoice # *">
-            <Input {...form.register("invoiceNumber")} className="h-9" placeholder="Bill / DC number" />
+          <Field label="Supplier invoice # (optional)">
+            <Input {...form.register("invoiceNumber")} className="h-9" placeholder="Bill / DC number — leave blank if none" />
             <FieldError msg={form.formState.errors.invoiceNumber?.message} />
           </Field>
           <Field label="Notes">

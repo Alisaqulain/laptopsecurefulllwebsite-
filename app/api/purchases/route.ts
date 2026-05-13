@@ -34,7 +34,7 @@ class LineValidationError extends Error {
 const PostSchema = z.object({
   supplierId: z.string().min(1),
   date: z.string().min(1),
-  invoiceNumber: z.string().min(1).max(80),
+  invoiceNumber: z.string().max(80).optional().default(""),
   lines: z.array(LineSchema).min(1),
   notes: z.string().max(2000).optional(),
 });
@@ -147,9 +147,11 @@ export async function POST(req: Request) {
   const supplier = await SupplierModel.findById(supplierId).lean();
   if (!supplier) return fail("Supplier not found", { status: 400, code: "BAD_SUPPLIER" });
 
-  const inv = parsed.data.invoiceNumber.trim();
-  const dup = await PurchaseModel.findOne({ supplierId, invoiceNumber: inv, deletedAt: null }).lean();
-  if (dup) return fail("This invoice number already exists for this supplier.", { status: 409, code: "DUPLICATE_INVOICE" });
+  const inv = (parsed.data.invoiceNumber ?? "").trim();
+  if (inv) {
+    const dup = await PurchaseModel.findOne({ supplierId, invoiceNumber: inv, deletedAt: null }).lean();
+    if (dup) return fail("This invoice number already exists for this supplier.", { status: 409, code: "DUPLICATE_INVOICE" });
+  }
 
   const session = await mongoose.startSession();
   let purchaseId: string | null = null;

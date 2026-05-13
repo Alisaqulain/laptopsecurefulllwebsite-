@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { formatPrice } from "@/lib/utils";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { ErpDashboardExplorer } from "@/components/erp/ErpDashboardExplorer";
 
 type Summary = {
   cards: {
@@ -114,7 +115,7 @@ export default function ErpDashboard() {
           <div className="mt-3 divide-y divide-white/5 text-sm">
             {(data?.recentPurchases ?? []).map((p) => (
               <div key={p._id} className="flex items-center justify-between py-2">
-                <div className="text-muted-foreground">{p.invoiceNumber}</div>
+                <div className="text-muted-foreground">{p.invoiceNumber?.trim() ? p.invoiceNumber : "—"}</div>
                 <div className="font-medium">{formatPrice(p.totals.finalTotal)}</div>
               </div>
             ))}
@@ -124,6 +125,8 @@ export default function ErpDashboard() {
           </div>
         </Card>
       </div>
+
+      <ErpDashboardExplorer />
 
       <Card className="glass p-4">
         <div className="text-sm font-medium">Delete requests from sales staff</div>

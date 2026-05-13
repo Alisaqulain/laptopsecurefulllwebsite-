@@ -3,6 +3,7 @@ import { StatCard } from "@/components/erp/StatCard";
 import { ErpPanel } from "@/components/erp/ErpPanel";
 import { ErpDashboardCharts } from "@/components/erp/ErpDashboardCharts";
 import { ErpDemoDataToolbar } from "@/components/erp/ErpDemoDataToolbar";
+import { ErpDashboardExplorer } from "@/components/erp/ErpDashboardExplorer";
 import { getSuperAdminDashboardSummary } from "@/lib/erp/get-dashboard-summary";
 import { formatDate, formatPrice } from "@/lib/utils";
 import { getSessionFromServerCookies } from "@/lib/auth/session";
@@ -88,7 +89,7 @@ export default async function ErpDashboardPage() {
                 ) : (
                   d.recentPurchases.map((r) => (
                     <tr key={r.id} className="border-b border-border/80">
-                      <td className="py-2 pr-2 font-mono text-xs">{r.invoiceNumber}</td>
+                      <td className="py-2 pr-2 font-mono text-xs">{r.invoiceNumber?.trim() ? r.invoiceNumber : "—"}</td>
                       <td className="py-2 pr-2 text-muted-foreground">{formatDate(r.date)}</td>
                       <td className="py-2 text-right tabular-nums">{formatPrice(r.total)}</td>
                     </tr>
@@ -100,44 +101,7 @@ export default async function ErpDashboardPage() {
         </ErpPanel>
       </div>
 
-      <div className="mt-6">
-        <ErpPanel>
-          <h2 className="text-sm font-semibold">Recent activity / notifications</h2>
-          <p className="mt-1 text-xs text-muted-foreground">Deletes and restores are shown here immediately.</p>
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[520px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-border text-xs uppercase text-muted-foreground">
-                  <th className="pb-2 pr-2 font-medium">When</th>
-                  <th className="pb-2 pr-2 font-medium">Action</th>
-                  <th className="pb-2 pr-2 font-medium">Invoice</th>
-                  <th className="pb-2 pr-2 font-medium">Customer</th>
-                  <th className="pb-2 text-right font-medium">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(d as any).recentActivity?.length ? (
-                  (d as any).recentActivity.map((a: any) => (
-                    <tr key={a.id} className="border-b border-border/80">
-                      <td className="py-2 pr-2 text-muted-foreground">{formatDate(a.createdAt)}</td>
-                      <td className="py-2 pr-2 text-muted-foreground">{String(a.action).replaceAll("_", " ")}</td>
-                      <td className="py-2 pr-2 font-mono text-xs">{a.newValue?.invoiceNumber ?? "—"}</td>
-                      <td className="py-2 pr-2 text-muted-foreground">{a.newValue?.customer ?? "—"}</td>
-                      <td className="py-2 text-right tabular-nums">{formatPrice(a.newValue?.amount ?? 0)}</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={5} className="py-6 text-center text-muted-foreground">
-                      No recent activity.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </ErpPanel>
-      </div>
+      {session?.role === RoleKey.SUPER_ADMIN ? <ErpDashboardExplorer /> : null}
 
     </>
   );
