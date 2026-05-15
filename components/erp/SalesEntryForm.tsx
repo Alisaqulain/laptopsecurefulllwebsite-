@@ -31,6 +31,7 @@ const Schema = z.object({
   discount: z.coerce.number().min(0).optional(),
   gstPercent: z.coerce.number().min(0).max(100).optional(),
   paymentMode: z.enum(["cash", "upi", "card", "bank_transfer"]),
+  amountReceived: z.coerce.number().min(0).optional(),
   notes: z.string().optional(),
 });
 
@@ -59,6 +60,7 @@ export function SalesEntryForm({ salesPortal: salesPortalProp }: { salesPortal?:
       discount: 0,
       gstPercent: 18,
       paymentMode: "cash",
+      amountReceived: undefined as unknown as number,
       notes: "",
     },
   });
@@ -77,6 +79,12 @@ export function SalesEntryForm({ salesPortal: salesPortalProp }: { salesPortal?:
   const lineSub = Math.max(0, lineBase - discount);
   const gstAmt = (lineSub * gstPercent) / 100;
   const grandTotal = lineSub + gstAmt;
+  const amountReceivedRaw = form.watch("amountReceived");
+  const amountReceived =
+    amountReceivedRaw === undefined || amountReceivedRaw === null || Number.isNaN(Number(amountReceivedRaw))
+      ? grandTotal
+      : Number(amountReceivedRaw);
+  const udhariDue = Math.max(0, grandTotal - amountReceived);
 
   useEffect(() => {
     (async () => {
@@ -109,6 +117,7 @@ export function SalesEntryForm({ salesPortal: salesPortalProp }: { salesPortal?:
       discount: 0,
       gstPercent: 18,
       paymentMode: "cash",
+      amountReceived: undefined as unknown as number,
       notes: "",
     });
     setQ("");
@@ -119,6 +128,15 @@ export function SalesEntryForm({ salesPortal: salesPortalProp }: { salesPortal?:
       <form
         className="space-y-4"
         onSubmit={form.handleSubmit(async (values) => {
+          const received =
+            values.amountReceived != null && !Number.isNaN(Number(values.amountReceived))
+              ? Number(values.amountReceived)
+              : grandTotal;
+          if (received > grandTotal + 0.009) {
+            toast.error("Amount received cannot be more than bill total");
+            return;
+          }
+          const dueOnSubmit = Math.max(0, grandTotal - received);
           setSubmitting(true);
           try {
             const res = await fetch("/api/sales", {
@@ -133,6 +151,10 @@ export function SalesEntryForm({ salesPortal: salesPortalProp }: { salesPortal?:
                 discount: values.discount ?? 0,
                 gstPercent: values.gstPercent ?? 0,
                 paymentMode: values.paymentMode,
+                amountReceived:
+                  values.amountReceived != null && !Number.isNaN(Number(values.amountReceived))
+                    ? Number(values.amountReceived)
+                    : undefined,
                 notes: values.notes || undefined,
               }),
             });
@@ -142,7 +164,11 @@ export function SalesEntryForm({ salesPortal: salesPortalProp }: { salesPortal?:
               return;
             }
             const id = json?.data?.sale?._id as string | undefined;
-            toast.success("Sale saved — stock updated.");
+            toast.success(
+              dueOnSubmit > 0
+                ? `Sale saved — ${formatPrice(dueOnSubmit)} on udhari`
+                : "Sale saved — stock updated.",
+            );
             setSalesListKey((k) => k + 1);
             if (id) window.open(`${printSaleBase}/${id}`, "_blank", "noopener,noreferrer");
             resetForm();
@@ -308,6 +334,27 @@ export function SalesEntryForm({ salesPortal: salesPortalProp }: { salesPortal?:
                   <div className="text-base font-bold tabular-nums text-primary">{formatPrice(grandTotal)}</div>
                 </div>
               </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div>
+                <div className="mb-1 text-xs font-medium text-muted-foreground">Amount received now ₹</div>
+                <Input type="number" min={0} step="0.01" className="h-9" {...form.register("amountReceived")} />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Full bill total = paid in full. Enter less to put the rest on udhari.
+                </p>
+              </div>
+              {udhariDue > 0.009 && (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+                  <div className="text-xs font-medium text-amber-800 dark:text-amber-300">Udhari (credit due)</div>
+                  <div className="text-lg font-bold tabular-nums text-amber-700 dark:text-amber-400">
+                    {formatPrice(udhariDue)}
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Received {formatPrice(amountReceived)} of {formatPrice(grandTotal)}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">

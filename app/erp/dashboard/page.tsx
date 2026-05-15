@@ -26,9 +26,21 @@ export default async function ErpDashboardPage() {
         actions={<ErpDemoDataToolbar enabled={showDemoTools} />}
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <StatCard label="Total purchases" value={d.cards.totalPurchases} />
-        <StatCard label="Total sales" value={d.cards.totalSales} />
+        <StatCard label="Total selling" value={d.cards.totalSelling} sub="Bill value of all sales" />
+        <StatCard
+          label="Cash received"
+          value={d.cards.totalReceived}
+          sub="Amount collected from customers"
+          className="border-emerald-500/30"
+        />
+        <StatCard
+          label="Udhari outstanding"
+          value={d.cards.totalUdhariDue}
+          sub="Credit still due"
+          className="border-amber-500/40"
+        />
         <StatCard label="Stock on hand (units)" value={d.cards.totalStockUnits} format="number" />
         <StatCard label="Low stock products" value={d.cards.lowStockCount} format="number" />
       </div>

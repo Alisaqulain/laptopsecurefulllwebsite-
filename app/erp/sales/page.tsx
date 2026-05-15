@@ -13,7 +13,7 @@ export default async function ErpSalesEntryPage() {
     <>
       <PageHeader
         title="Sales"
-        description="Record a new sale below, then browse all invoices with view, printable download, or delete (delete restores stock)."
+        description="Record a new sale below. Use amount received for partial payment (udhari). Open Udhari / Credit in the menu to collect later."
       />
       <SalesEntryForm />
     </>

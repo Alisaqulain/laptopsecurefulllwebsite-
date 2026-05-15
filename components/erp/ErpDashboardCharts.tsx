@@ -3,7 +3,7 @@
 import { Line, LineChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ErpPanel } from "@/components/erp/ErpPanel";
 
-type Row = { month: string; sales?: number; purchases?: number };
+type Row = { month: string; sales?: number; received?: number; purchases?: number };
 
 export function ErpDashboardCharts({
   salesTrend,
@@ -16,13 +16,16 @@ export function ErpDashboardCharts({
   const merged = salesTrend.map((s) => ({
     month: s.month,
     sales: s.sales ?? 0,
+    received: s.received ?? 0,
     purchases: purchaseByMonth.get(s.month) ?? 0,
   }));
 
   return (
     <ErpPanel className="mt-6">
       <h2 className="text-sm font-semibold text-foreground">Monthly purchases & sales</h2>
-      <p className="mt-1 text-xs text-muted-foreground">Last six months — totals from saved entries.</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Last six months — selling (billed), cash received, and purchases.
+      </p>
       <div className="mt-4 h-72 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={merged} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -38,7 +41,15 @@ export function ErpDashboardCharts({
               }}
             />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Line type="monotone" dataKey="sales" name="Sales" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+            <Line type="monotone" dataKey="sales" name="Selling" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+            <Line
+              type="monotone"
+              dataKey="received"
+              name="Cash received"
+              stroke="hsl(142 76% 36%)"
+              strokeWidth={2}
+              dot={false}
+            />
             <Line
               type="monotone"
               dataKey="purchases"

@@ -7,6 +7,7 @@ export const SUPER_ERP_NAV: ErpNavItem[] = [
   { href: "/erp/suppliers", label: "Suppliers" },
   { href: "/erp/purchases", label: "Purchase Entry" },
   { href: "/erp/sales", label: "Sales Entry" },
+  { href: "/erp/udhari", label: "Udhari / Credit" },
   { href: "/erp/deleted-sales", label: "Deleted Sales Log" },
   { href: "/erp/stock", label: "Stock" },
   { href: "/erp/users", label: "Users" },
@@ -17,6 +18,7 @@ export const SALES_NAV: ErpNavItem[] = [
   { href: "/sales/dashboard", label: "Dashboard" },
   { href: "/sales/new-sale", label: "New Sale" },
   { href: "/sales/invoices", label: "Invoices" },
+  { href: "/sales/udhari", label: "Udhari / Credit" },
   { href: "/sales/stock", label: "Stock Check" },
 ];
 

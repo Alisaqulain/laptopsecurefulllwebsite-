@@ -18,6 +18,7 @@ const PostSchema = z.object({
   discount: z.number().min(0).optional(),
   gstPercent: z.number().min(0).max(100).optional(),
   paymentMode: z.enum(["cash", "upi", "card", "bank_transfer"]),
+  amountReceived: z.number().min(0).optional(),
   notes: z.string().max(500).optional(),
 });
 
@@ -55,7 +56,16 @@ export async function GET(req: Request) {
       .sort({ date: -1 })
       .skip(skip)
       .limit(limit)
-      .select({ invoiceNumber: 1, date: 1, customerSnapshot: 1, paymentMode: 1, items: 1, totals: 1, createdByUserId: 1 })
+      .select({
+        invoiceNumber: 1,
+        date: 1,
+        customerSnapshot: 1,
+        paymentMode: 1,
+        items: 1,
+        totals: 1,
+        udhari: 1,
+        createdByUserId: 1,
+      })
       .lean(),
     SaleModel.countDocuments(filter),
   ]);
@@ -109,6 +119,11 @@ export async function POST(req: Request) {
       const gstAmount = (lineNet * gstRate) / 100;
       const lineTotal = lineNet + gstAmount;
 
+      const amountReceived =
+        parsed.data.amountReceived != null ? parsed.data.amountReceived : lineTotal;
+      if (amountReceived > lineTotal + 0.001) throw new Error("BAD_RECEIVED");
+      const balanceDue = Math.max(0, lineTotal - amountReceived);
+
       inv = invoiceNo();
       const exists = await SaleModel.findOne({ invoiceNumber: inv }).session(session).lean();
       if (exists) {
@@ -152,6 +167,11 @@ export async function POST(req: Request) {
               finalTotal: lineTotal,
             },
             notes: parsed.data.notes?.trim(),
+            udhari: {
+              amountReceived,
+              balanceDue,
+              payments: [],
+            },
             createdByUserId: new Types.ObjectId(auth.session.userId),
           },
         ],
@@ -165,6 +185,8 @@ export async function POST(req: Request) {
     if (code === "NO_STOCK") return fail("Not enough stock for this quantity", { status: 400, code: "NO_STOCK" });
     if (code === "BAD_PRICE") return fail("Product has no selling price on file", { status: 400, code: "BAD_PRICE" });
     if (code === "BAD_DISCOUNT") return fail("Discount too large", { status: 400, code: "BAD_DISCOUNT" });
+    if (code === "BAD_RECEIVED")
+      return fail("Amount received cannot exceed bill total", { status: 400, code: "BAD_RECEIVED" });
     return fail("Could not save sale", { status: 500, code: "SALE_FAILED" });
   } finally {
     await session.endSession();

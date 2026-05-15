@@ -19,7 +19,16 @@ export async function getSuperAdminDashboardSummary() {
 
   const [salesAgg] = await SaleModel.aggregate([
     { $match: { deletedAt: null } },
-    { $group: { _id: null, total: { $sum: "$totals.finalTotal" } } },
+    {
+      $group: {
+        _id: null,
+        totalSelling: { $sum: "$totals.finalTotal" },
+        totalReceived: {
+          $sum: { $ifNull: ["$udhari.amountReceived", "$totals.finalTotal"] },
+        },
+        totalUdhariDue: { $sum: { $ifNull: ["$udhari.balanceDue", 0] } },
+      },
+    },
   ]);
 
   const products = await ProductModel.find(
@@ -63,7 +72,10 @@ export async function getSuperAdminDashboardSummary() {
     {
       $group: {
         _id: { y: { $year: "$date" }, m: { $month: "$date" } },
-        total: { $sum: "$totals.finalTotal" },
+        selling: { $sum: "$totals.finalTotal" },
+        received: {
+          $sum: { $ifNull: ["$udhari.amountReceived", "$totals.finalTotal"] },
+        },
       },
     },
   ]);
@@ -78,10 +90,10 @@ export async function getSuperAdminDashboardSummary() {
     },
   ]);
 
-  const salesMap = new Map<string, number>();
+  const salesMap = new Map<string, { selling: number; received: number }>();
   for (const row of salesByMonthAgg) {
     const k = `${row._id.y}-${String(row._id.m).padStart(2, "0")}`;
-    salesMap.set(k, row.total ?? 0);
+    salesMap.set(k, { selling: row.selling ?? 0, received: row.received ?? 0 });
   }
   const purchaseMap = new Map<string, number>();
   for (const row of purchaseByMonthAgg) {
@@ -89,12 +101,21 @@ export async function getSuperAdminDashboardSummary() {
     purchaseMap.set(k, row.total ?? 0);
   }
 
-  const salesTrend = months.map((k) => ({ month: k, sales: salesMap.get(k) ?? 0 }));
+  const salesTrend = months.map((k) => {
+    const row = salesMap.get(k);
+    return {
+      month: k,
+      sales: row?.selling ?? 0,
+      received: row?.received ?? 0,
+    };
+  });
   const purchaseTrend = months.map((k) => ({ month: k, purchases: purchaseMap.get(k) ?? 0 }));
 
   return {
     cards: {
-      totalSales: salesAgg?.total ?? 0,
+      totalSelling: salesAgg?.totalSelling ?? 0,
+      totalReceived: salesAgg?.totalReceived ?? 0,
+      totalUdhariDue: salesAgg?.totalUdhariDue ?? 0,
       totalPurchases: purchaseAgg?.total ?? 0,
       totalStockUnits,
       lowStockCount: lowStock.length,

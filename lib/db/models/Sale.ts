@@ -45,6 +45,24 @@ const SaleSchema = new Schema(
     },
 
     notes: { type: String },
+
+    /** Credit / udhari — amount still owed after partial payment at sale or later. */
+    udhari: {
+      amountReceived: { type: Number, default: 0, min: 0 },
+      balanceDue: { type: Number, default: 0, min: 0, index: true },
+      payments: {
+        type: [
+          {
+            amount: { type: Number, required: true, min: 0.01 },
+            date: { type: Date, required: true },
+            note: { type: String },
+            recordedByUserId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+          },
+        ],
+        default: [],
+      },
+    },
+
     createdByUserId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     deletedAt: { type: Date, default: null, index: true },
     deletedByUserId: { type: Schema.Types.ObjectId, ref: "User", default: null },

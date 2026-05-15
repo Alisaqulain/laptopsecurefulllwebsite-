@@ -15,6 +15,7 @@ type Row = {
   invoiceNumber: string;
   paymentMode?: string;
   totals?: { finalTotal?: number };
+  udhari?: { amountReceived?: number; balanceDue?: number };
   customerSnapshot?: { name?: string; phone?: string };
   items?: Array<{ name?: string; quantity?: number }>;
   createdBy?: { name?: string; role?: string } | null;
@@ -120,7 +121,7 @@ export function SalesListTable({
   const viewHref = (id: string) => (mode === "sales" ? `/sales/invoices/view/${id}` : `/erp/sales/view/${id}`);
   const printHref = (id: string) => (mode === "sales" ? `/sales/print/sale/${id}` : `/erp/print/sale/${id}`);
 
-  const colCount = 8 + (meta.showAmounts ? 1 : 0);
+  const colCount = 9 + (meta.showAmounts ? 1 : 0);
 
   return (
     <ErpPanel>
@@ -190,6 +191,7 @@ export function SalesListTable({
                 <th className="px-3 py-2 font-medium">Payment</th>
                 <th className="px-3 py-2 font-medium">Created by</th>
                 {meta.showAmounts && <th className="px-3 py-2 text-right font-medium">Amount</th>}
+                <th className="px-3 py-2 text-right font-medium">Udhari</th>
                 <th className="px-3 py-2 text-right font-medium">Actions</th>
               </tr>
             </thead>
@@ -233,6 +235,15 @@ export function SalesListTable({
                     {meta.showAmounts && (
                       <td className="px-3 py-2 text-right tabular-nums font-semibold">{formatPrice(r.totals?.finalTotal ?? 0)}</td>
                     )}
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {(r.udhari?.balanceDue ?? 0) > 0 ? (
+                        <span className="font-semibold text-amber-700 dark:text-amber-400">
+                          {formatPrice(r.udhari?.balanceDue ?? 0)}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex flex-wrap justify-end gap-1">
                         <Button type="button" variant="outline" size="sm" className="h-8 px-2" asChild>
